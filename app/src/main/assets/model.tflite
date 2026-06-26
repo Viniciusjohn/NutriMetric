@@ -1,0 +1,1 @@
+Placeholder TFLite Model Content. This is a dummy flatbuffer file. When a real trained TFLite model is copied here, the interpreter will read its architecture and weights.

@@ -1,0 +1,6 @@
+{
+  "name": "PratoBr",
+  "description": "App de estimativa nutricional por foto focado em comida brasileira",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
