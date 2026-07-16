@@ -1,21 +1,43 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# NutriMetric 🥗
 
-# Run and deploy your AI Studio app
+Nutricionista de bolso: analise fotos de refeições brasileiras com IA, escaneie
+códigos de barras e acompanhe suas metas de macronutrientes (base Tabela TACO).
 
-This contains everything you need to run your app locally.
+- **App Android** em Kotlin + Jetpack Compose (`app/`)
+- **Backend** em Cloud Functions for Firebase (`functions/`) — as chaves de IA
+  vivem apenas no servidor, e a quota diária de fotos é validada no Firestore
+- **Roadmap do produto**: ver [ROADMAP.md](ROADMAP.md)
 
-View your app in AI Studio: https://ai.studio/apps/fc5a1f70-dccb-4c79-bf46-395f60ee7a04
+## Rodar localmente
 
-## Run Locally
+**Pré-requisitos:** [Android Studio](https://developer.android.com/studio)
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+1. Abra o Android Studio → **Open** → selecione a pasta do projeto
+2. Siga o guia [docs/SETUP-FIREBASE.md](docs/SETUP-FIREBASE.md) para criar o
+   projeto Firebase e baixar o `google-services.json` para `app/`
+   - Sem esse arquivo o app compila e roda em **modo dev** (sem login e sem
+     análise por IA — a análise depende do backend)
+3. Rode o app em um emulador ou dispositivo físico com câmera
 
+## Backend (Cloud Functions)
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+```bash
+cd functions
+npm install
+npm run build          # compila o TypeScript
+firebase deploy --only functions,firestore:rules
+```
+
+Segredos necessários (nunca commitados):
+
+```bash
+firebase functions:secrets:set GEMINI_API_KEY
+firebase functions:secrets:set REVENUECAT_WEBHOOK_TOKEN
+```
+
+## Testes
+
+```bash
+./gradlew test                    # unit tests (Robolectric/Roborazzi)
+./gradlew connectedAndroidTest    # instrumentados (dispositivo/emulador)
+```

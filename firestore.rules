@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid} {
+      // O usuário só enxerga o próprio documento.
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // O cliente NUNCA pode se auto-promover a premium — isPremium é escrito
+      // apenas pelo webhook do RevenueCat (Admin SDK ignora estas regras).
+      allow create: if request.auth != null && request.auth.uid == uid
+        && !request.resource.data.keys().hasAny(['isPremium', 'subscriptionUpdatedAt', 'lastSubscriptionEvent']);
+      allow update: if request.auth != null && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['isPremium', 'subscriptionUpdatedAt', 'lastSubscriptionEvent']);
+      allow delete: if false;
+
+      // Quota diária: leitura permitida (para exibir "fotos restantes" na UI),
+      // escrita proibida — só as Cloud Functions incrementam.
+      match /usage/{date} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
+      }
+    }
+
+    // Qualquer outra coleção: negado por padrão.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

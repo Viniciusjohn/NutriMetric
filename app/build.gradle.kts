@@ -4,15 +4,24 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
-  alias(libs.plugins.secrets)
+  alias(libs.plugins.google.services) apply false
+}
+
+// O plugin google-services exige o arquivo google-services.json (baixado do
+// console do Firebase). Aplicamos condicionalmente para o projeto continuar
+// compilando antes de o projeto Firebase ser criado.
+if (file("google-services.json").exists()) {
+  apply(plugin = libs.plugins.google.services.get().pluginId)
+} else {
+  logger.warn("google-services.json ausente — Firebase desativado neste build. Veja docs/SETUP-FIREBASE.md")
 }
 
 android {
-  namespace = "com.example"
+  namespace = "br.com.nutrimetric.app"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.pratobr.xpqtz"
+    applicationId = "br.com.nutrimetric.app"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
@@ -60,13 +69,6 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
-// Configure the Secrets Gradle Plugin to use .env and .env.example files
-// to match the convention used in Web projects.
-secrets {
-  propertiesFileName = ".env"
-  defaultPropertiesFileName = ".env.example"
-}
-
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
@@ -101,8 +103,15 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
+  implementation(libs.firebase.auth)
+  implementation(libs.firebase.firestore)
+  implementation(libs.firebase.functions)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services)
+  implementation(libs.googleid)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.kotlinx.coroutines.play.services)
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
