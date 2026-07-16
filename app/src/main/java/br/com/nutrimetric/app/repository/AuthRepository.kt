@@ -12,6 +12,7 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.functions.FirebaseFunctions
+import com.revenuecat.purchases.Purchases
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -65,6 +66,7 @@ class AuthRepository {
 
     fun signOut() {
         auth.signOut()
+        logOutRevenueCat()
     }
 
     /**
@@ -81,6 +83,22 @@ class AuthRepository {
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Desloga o RevenueCat (volta a um app_user_id anônimo) — essencial no
+     * signOut/deleteAccount, senão a próxima conta a logar no mesmo aparelho
+     * herdaria o status premium da anterior. Chamado direto no singleton
+     * (sem passar por SubscriptionRepository, que exige Context).
+     */
+    private fun logOutRevenueCat() {
+        if (Purchases.isConfigured) {
+            try {
+                Purchases.sharedInstance.logOut()
+            } catch (e: Exception) {
+                android.util.Log.w("AuthRepository", "Falha ao deslogar do RevenueCat", e)
+            }
         }
     }
 

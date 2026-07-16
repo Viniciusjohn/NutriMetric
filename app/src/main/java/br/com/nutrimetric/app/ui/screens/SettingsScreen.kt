@@ -2,6 +2,7 @@ package br.com.nutrimetric.app.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,6 +13,7 @@ import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,10 +39,12 @@ fun SettingsScreen(
     viewModel: MainViewModel,
     authRepository: AuthRepository,
     onBack: () -> Unit,
-    onSignedOut: () -> Unit
+    onSignedOut: () -> Unit,
+    onNavigateToPaywall: () -> Unit
 ) {
     val nutritionGoals by viewModel.nutritionGoals.collectAsState()
     val reminder by viewModel.reminderSettings.collectAsState()
+    val isPremium by viewModel.isPremium.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -119,6 +123,42 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+                }
+
+                if (!isPremium) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToPaywall() }
+                            .testTag("premium_upsell_card"),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "NutriMetric Premium",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Text(
+                                    "15 fotos por dia, Nutri IA e relatórios semanais",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                )
+                            }
                         }
                     }
                 }

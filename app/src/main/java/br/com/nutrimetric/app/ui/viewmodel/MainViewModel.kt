@@ -77,6 +77,8 @@ sealed class AnalysisState {
     object Loading : AnalysisState()
     data class Success(val imageBase64: String, val mappedItems: List<MappedFoodItem>, val uri: String) : AnalysisState()
     data class Error(val message: String) : AnalysisState()
+    /** Limite diário de fotos estourado (FREE: 1/dia, PREMIUM: 15/dia) — gatilho do paywall. */
+    data class QuotaExceeded(val message: String) : AnalysisState()
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -92,6 +94,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val tfliteClassifier = br.com.nutrimetric.app.ml.TfliteFoodClassifier(application)
     private val goalsRepository = br.com.nutrimetric.app.repository.GoalsRepository(application)
+
+    private val subscriptionRepository = br.com.nutrimetric.app.repository.SubscriptionRepository(application)
+
+    val isPremium: StateFlow<Boolean> = subscriptionRepository.isPremium
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
 
     val nutritionGoals: StateFlow<br.com.nutrimetric.app.repository.NutritionGoals> = goalsRepository.goalsFlow
         .stateIn(
@@ -458,6 +469,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                         _analysisState.value = AnalysisState.Success(base64, mappedItems, uri)
                     }
+                } catch (e: br.com.nutrimetric.app.repository.QuotaExceededException) {
+                    // Precisa vir antes do catch (e: Exception) genérico abaixo — Kotlin
+                    // exige que exceções mais específicas sejam capturadas primeiro.
+                    android.util.Log.w("MainViewModel", "Limite diário de fotos atingido", e)
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        _analysisState.value = AnalysisState.QuotaExceeded(e.message ?: "Limite diário de fotos atingido.")
+                    }
                 } catch (e: Exception) {
                     android.util.Log.e("MainViewModel", "Erro geral no pipeline de análise", e)
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
@@ -676,4 +694,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             tacoDao.searchFoods(query)
         }
     }
+
+    // ---------- Assinatura (RevenueCat) ----------
+
+    suspend fun getOffering(): com.revenuecat.purchases.Offering? = subscriptionRepository.getOffering()
+
+    suspend fun purchasePackage(
+        activity: android.app.Activity,
+        packageToPurchase: com.revenuecat.purchases.Package
+    ): Result<Unit> = subscriptionRepository.purchasePackage(activity, packageToPurchase)
+
+    suspend fun restorePurchases(): Result<Unit> = subscriptionRepository.restorePurchases()
 }

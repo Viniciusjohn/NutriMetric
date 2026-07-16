@@ -23,6 +23,7 @@ import br.com.nutrimetric.app.ui.screens.EditMealScreen
 import br.com.nutrimetric.app.ui.screens.HomeScreen
 import br.com.nutrimetric.app.ui.screens.LoginScreen
 import br.com.nutrimetric.app.ui.screens.ManualEntryScreen
+import br.com.nutrimetric.app.ui.screens.PaywallScreen
 import br.com.nutrimetric.app.ui.screens.SettingsScreen
 import br.com.nutrimetric.app.ui.screens.HistoryScreen
 import br.com.nutrimetric.app.ui.theme.MyApplicationTheme
@@ -90,7 +91,8 @@ class MainActivity : ComponentActivity() {
               HistoryScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToEditMeal = { mealId -> navController.navigate("edit_meal/$mealId") }
+                onNavigateToEditMeal = { mealId -> navController.navigate("edit_meal/$mealId") },
+                onNavigateToPaywall = { navController.navigate("paywall") }
               )
             }
             composable("settings") {
@@ -102,7 +104,8 @@ class MainActivity : ComponentActivity() {
                   navController.navigate("login") {
                     popUpTo(0)
                   }
-                }
+                },
+                onNavigateToPaywall = { navController.navigate("paywall") }
               )
             }
             composable("camera") {
@@ -115,7 +118,10 @@ class MainActivity : ComponentActivity() {
             composable("analysis") {
               AnalysisScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateToPaywall = { reason ->
+                  navController.navigate("paywall?reason=${reason ?: ""}")
+                }
               )
             }
             composable("manual_entry") {
@@ -131,6 +137,21 @@ class MainActivity : ComponentActivity() {
               val mealId = backStackEntry.arguments?.getLong("mealId") ?: 0L
               EditMealScreen(
                 mealId = mealId,
+                onBack = { navController.popBackStack() }
+              )
+            }
+            composable(
+              route = "paywall?reason={reason}",
+              arguments = listOf(navArgument("reason") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+              })
+            ) { backStackEntry ->
+              val reason = backStackEntry.arguments?.getString("reason")?.ifBlank { null }
+              PaywallScreen(
+                viewModel = viewModel,
+                reason = reason,
                 onBack = { navController.popBackStack() }
               )
             }

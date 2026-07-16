@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,9 +45,11 @@ import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
 fun HistoryScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit,
-    onNavigateToEditMeal: (Long) -> Unit
+    onNavigateToEditMeal: (Long) -> Unit,
+    onNavigateToPaywall: () -> Unit
 ) {
     val historyTotals by viewModel.historyTotals.collectAsState()
+    val isPremium by viewModel.isPremium.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
     val nutritionGoals by viewModel.nutritionGoals.collectAsState()
     val selectedDateStr by viewModel.selectedDate.collectAsState()
@@ -264,6 +267,46 @@ fun HistoryScreen(
                                         currentDay++
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!isPremium) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToPaywall() },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Relatórios semanais no Premium",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Text(
+                                    "15 fotos por dia e análise de evolução",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                )
                             }
                         }
                     }

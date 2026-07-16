@@ -93,27 +93,18 @@ Features de retenção 100% locais (não dependem de contas externas), feitas an
 - **📄 Política de privacidade + Termos de uso**: `docs/privacy-policy.html`, `docs/terms.html`, linkados em Settings — pendente apenas habilitar GitHub Pages (passo manual, ver `docs/SETUP-FIREBASE.md`)
 - **📊 Firebase Analytics + Crashlytics**: dependências e plugin adicionados (aplicado condicionalmente, mesmo padrão do `google-services`) — sem eventos de funil customizados ainda (aguardam Fase 2/3)
 
-## FASE 2 — Monetização (~1–2 semanas)
+## FASE 2 — Monetização (✅ código implementado, falta setup manual)
 
 **Meta: assinatura funcionando em sandbox, paywall no lugar certo.**
 
-### 2.1 Produtos na Play Console
-- Assinatura `premium` com 2 base plans: `monthly` R$ 24,90 · `annual` R$ 149,90
-- Oferta de **7 dias de trial grátis** em ambos
+- **🐛 Fix crítico**: `QuotaExceededException` era engolida silenciosamente (virava `AnalysisState.Success(emptyList())`) — corrigido com o subtipo `AnalysisState.QuotaExceeded`, agora dispara o paywall de verdade
+- **`repository/SubscriptionRepository.kt`**: integração com o SDK do RevenueCat (`com.revenuecat.purchases:purchases`), `isPremium: Flow<Boolean>` reativo, `getOffering()`/`purchasePackage()`/`restorePurchases()`/`logout()`
+- **`ui/screens/PaywallScreen.kt`**: preços/pacotes vêm dinamicamente da Offering do RevenueCat (sem hardcode), gatilhos: quota estourada (`AnalysisScreen`), upsell em `SettingsScreen` e `HistoryScreen`
+- **Webhook RevenueCat → Cloud Function** (`revenuecatWebhook`, já existia desde a Fase 1): grava `users/{uid}.isPremium` no Firestore — é isso que faz a quota 1 vs 15 valer no servidor, cliente nunca decide
+- `AuthRepository.signOut()`/`deleteAccount()` chamam `Purchases.sharedInstance.logOut()` — sem isso a próxima conta no aparelho herdaria o status premium
+- **Pendente (só o dono das contas pode fazer)**: publicar em Teste Interno, criar produtos na Play Console, configurar Entitlement/Offering no RevenueCat, colar a API key em `local.properties`, gerar o token real do webhook — passo a passo completo em [docs/SETUP-REVENUECAT.md](docs/SETUP-REVENUECAT.md)
 
-### 2.2 RevenueCat
-- Dep `com.revenuecat.purchases:purchases` + **novo** `repository/SubscriptionRepository.kt`
-- Entitlement `premium` mapeado aos produtos
-- **Webhook RevenueCat → Cloud Function** que grava `users/{uid}.isPremium` no Firestore (é isso que faz a quota 1 vs 15 valer no servidor — cliente nunca decide)
-
-### 2.3 Paywall
-- **Novo:** `ui/screens/PaywallScreen.kt` — gatilhos:
-  1. Quota do dia estourada (erro da function)
-  2. Tentativa de usar chat livre (Fase 3)
-  3. Upsell discreto em `SettingsScreen` e `HistoryScreen` (relatório semanal)
-- Copy: benefícios + "7 dias grátis, cancele quando quiser"
-
-**✅ Milestone F2:** comprar com license tester no teste fechado → quota vira 15, chat destrava; cancelar → volta a FREE.
+**✅ Milestone F2:** comprar com license tester → `isPremium` fica `true` no app e no Firestore, quota vira 15; cancelar → só revoga na expiração (não no cancelamento).
 
 ---
 

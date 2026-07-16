@@ -18,6 +18,17 @@ if (file("google-services.json").exists()) {
   logger.warn("google-services.json ausente — Firebase desativado neste build. Veja docs/SETUP-FIREBASE.md")
 }
 
+// Chave pública do RevenueCat (client-safe por natureza, ao contrário das
+// chaves de IA que ficam só no servidor). Lida de local.properties (já
+// gitignorado) para não commitar segredos de conta, com fallback vazio para
+// o projeto continuar compilando antes do RevenueCat ser configurado.
+val localProperties = java.util.Properties().apply {
+  val localPropertiesFile = rootProject.file("local.properties")
+  if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { load(it) }
+  }
+}
+
 android {
   namespace = "br.com.nutrimetric.app"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -30,6 +41,12 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    buildConfigField(
+      "String",
+      "REVENUECAT_API_KEY",
+      "\"${localProperties.getProperty("REVENUECAT_API_KEY", "")}\""
+    )
   }
 
   signingConfigs {
@@ -110,6 +127,7 @@ dependencies {
   implementation(libs.firebase.functions)
   implementation(libs.firebase.analytics)
   implementation(libs.firebase.crashlytics)
+  implementation(libs.revenuecat.purchases)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
   implementation(libs.googleid)

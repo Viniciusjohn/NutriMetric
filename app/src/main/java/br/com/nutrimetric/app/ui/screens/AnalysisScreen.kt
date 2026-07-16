@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,7 +31,8 @@ import br.com.nutrimetric.app.ui.viewmodel.MainViewModel
 @Composable
 fun AnalysisScreen(
     viewModel: MainViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToPaywall: (String?) -> Unit
 ) {
     val context = LocalContext.current
     val uri by viewModel.currentImageUri.collectAsState()
@@ -128,6 +130,42 @@ fun AnalysisScreen(
                         onBack()
                     }) {
                         Text("Tentar Novamente")
+                    }
+                }
+                is AnalysisState.QuotaExceeded -> {
+                    Spacer(modifier = Modifier.height(32.dp))
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = currentState.message,
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            viewModel.resetAnalysis()
+                            onNavigateToPaywall("quota_exceeded")
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Text("Ver planos Premium", fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        viewModel.resetAnalysis()
+                        onBack()
+                    }) {
+                        Text("Voltar")
                     }
                 }
                 is AnalysisState.Success -> {
