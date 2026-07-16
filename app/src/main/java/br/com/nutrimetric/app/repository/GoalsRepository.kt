@@ -3,6 +3,7 @@ package br.com.nutrimetric.app.repository
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -13,7 +14,15 @@ data class NutritionGoals(
     val calories: Int,
     val protein: Int,
     val carbs: Int,
-    val fat: Int
+    val fat: Int,
+    val waterMl: Int
+)
+
+/** Preferências de lembrete diário (notificação local). */
+data class ReminderSettings(
+    val enabled: Boolean,
+    val hour: Int,
+    val minute: Int
 )
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "nutrition_goals")
@@ -25,12 +34,23 @@ class GoalsRepository(private val context: Context) {
         private val KEY_PROTEIN = intPreferencesKey("goal_protein")
         private val KEY_CARBS = intPreferencesKey("goal_carbs")
         private val KEY_FAT = intPreferencesKey("goal_fat")
-        
+        private val KEY_WATER = intPreferencesKey("goal_water")
+        private val KEY_REMINDER_ENABLED = booleanPreferencesKey("reminder_enabled")
+        private val KEY_REMINDER_HOUR = intPreferencesKey("reminder_hour")
+        private val KEY_REMINDER_MINUTE = intPreferencesKey("reminder_minute")
+
         val DEFAULT_GOALS = NutritionGoals(
             calories = 2000,
             protein = 130,
             carbs = 220,
-            fat = 65
+            fat = 65,
+            waterMl = 2000
+        )
+
+        val DEFAULT_REMINDER = ReminderSettings(
+            enabled = false,
+            hour = 12,
+            minute = 0
         )
     }
 
@@ -40,7 +60,17 @@ class GoalsRepository(private val context: Context) {
                 calories = preferences[KEY_CALORIES] ?: DEFAULT_GOALS.calories,
                 protein = preferences[KEY_PROTEIN] ?: DEFAULT_GOALS.protein,
                 carbs = preferences[KEY_CARBS] ?: DEFAULT_GOALS.carbs,
-                fat = preferences[KEY_FAT] ?: DEFAULT_GOALS.fat
+                fat = preferences[KEY_FAT] ?: DEFAULT_GOALS.fat,
+                waterMl = preferences[KEY_WATER] ?: DEFAULT_GOALS.waterMl
+            )
+        }
+
+    val reminderFlow: Flow<ReminderSettings> = context.dataStore.data
+        .map { preferences ->
+            ReminderSettings(
+                enabled = preferences[KEY_REMINDER_ENABLED] ?: DEFAULT_REMINDER.enabled,
+                hour = preferences[KEY_REMINDER_HOUR] ?: DEFAULT_REMINDER.hour,
+                minute = preferences[KEY_REMINDER_MINUTE] ?: DEFAULT_REMINDER.minute
             )
         }
 
@@ -50,6 +80,15 @@ class GoalsRepository(private val context: Context) {
             preferences[KEY_PROTEIN] = goals.protein
             preferences[KEY_CARBS] = goals.carbs
             preferences[KEY_FAT] = goals.fat
+            preferences[KEY_WATER] = goals.waterMl
+        }
+    }
+
+    suspend fun saveReminder(settings: ReminderSettings) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_REMINDER_ENABLED] = settings.enabled
+            preferences[KEY_REMINDER_HOUR] = settings.hour
+            preferences[KEY_REMINDER_MINUTE] = settings.minute
         }
     }
 }

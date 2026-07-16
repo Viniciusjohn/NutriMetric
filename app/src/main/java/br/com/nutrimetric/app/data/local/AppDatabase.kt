@@ -6,11 +6,22 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-@Database(entities = [MealEntity::class, TacoMismatchEntity::class], version = 4, exportSchema = false)
+@Database(
+    entities = [
+        MealEntity::class,
+        TacoMismatchEntity::class,
+        WaterEntity::class,
+        WeightEntity::class
+    ],
+    version = 5,
+    exportSchema = false
+)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun mealDao(): MealDao
     abstract fun tacoMismatchDao(): TacoMismatchDao
+    abstract fun waterDao(): WaterDao
+    abstract fun weightDao(): WeightDao
     
     companion object {
         @Volatile

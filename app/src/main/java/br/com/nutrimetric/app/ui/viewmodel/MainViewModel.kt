@@ -84,6 +84,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = br.com.nutrimetric.app.data.local.DatabaseProvider.getAppDatabase(application)
     private val tacoDb = br.com.nutrimetric.app.data.local.DatabaseProvider.getTacoDatabase(application)
     private val dailyConsumptionDao = tacoDb.dailyConsumptionDao()
+    private val waterDao = db.waterDao()
+    private val weightDao = db.weightDao()
     private val mealRepository = MealRepository(application, db.mealDao(), dailyConsumptionDao)
 
     private val analysisRepository = AnalysisRepository()
@@ -115,9 +117,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun saveGoals(calories: Int, protein: Int, carbs: Int, fat: Int) {
         viewModelScope.launch {
+            // Preserva a meta de água atual (editada em outra seção de Settings)
+            val current = nutritionGoals.value
             goalsRepository.saveGoals(
-                br.com.nutrimetric.app.repository.NutritionGoals(calories, protein, carbs, fat)
+                current.copy(calories = calories, protein = protein, carbs = carbs, fat = fat)
             )
+        }
+    }
+
+    fun saveWaterGoal(waterMl: Int) {
+        viewModelScope.launch {
+            goalsRepository.saveGoals(nutritionGoals.value.copy(waterMl = waterMl))
+        }
+    }
+
+    val reminderSettings: StateFlow<br.com.nutrimetric.app.repository.ReminderSettings> =
+        goalsRepository.reminderFlow.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = br.com.nutrimetric.app.repository.GoalsRepository.DEFAULT_REMINDER
+        )
+
+    fun saveReminder(settings: br.com.nutrimetric.app.repository.ReminderSettings) {
+        viewModelScope.launch {
+            goalsRepository.saveReminder(settings)
+            val app = getApplication<Application>()
+            if (settings.enabled) {
+                br.com.nutrimetric.app.notifications.ReminderScheduler.schedule(app, settings.hour, settings.minute)
+            } else {
+                br.com.nutrimetric.app.notifications.ReminderScheduler.cancel(app)
+            }
         }
     }
 
@@ -225,6 +254,81 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
+        )
+
+    // ---------- Água ----------
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val waterTotalMl: StateFlow<Int> = _selectedDate
+        .flatMapLatest { date -> waterDao.getTotalForDate(date) }
+        .flowOn(kotlinx.coroutines.Dispatchers.IO)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+
+    fun addWater(amountMl: Int) {
+        viewModelScope.launch {
+            waterDao.insert(
+                br.com.nutrimetric.app.data.local.WaterEntity(
+                    date = _selectedDate.value,
+                    amountMl = amountMl
+                )
+            )
+        }
+    }
+
+    fun undoLastWater() {
+        viewModelScope.launch {
+            waterDao.deleteLastForDate(_selectedDate.value)
+        }
+    }
+
+    // ---------- Peso ----------
+    val latestWeight: StateFlow<br.com.nutrimetric.app.data.local.WeightEntity?> = weightDao.getLatest()
+        .flowOn(kotlinx.coroutines.Dispatchers.IO)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
+    /** Os dois registros mais recentes, para exibir a variação de peso. */
+    val recentWeights: StateFlow<List<br.com.nutrimetric.app.data.local.WeightEntity>> = weightDao.getRecent()
+        .flowOn(kotlinx.coroutines.Dispatchers.IO)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val weightHistory: StateFlow<List<br.com.nutrimetric.app.data.local.WeightEntity>> = weightDao.getAllForChart()
+        .flowOn(kotlinx.coroutines.Dispatchers.IO)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    fun saveWeight(weightKg: Double) {
+        viewModelScope.launch {
+            weightDao.insert(
+                br.com.nutrimetric.app.data.local.WeightEntity(
+                    date = java.time.LocalDate.now().toString(),
+                    weightKg = weightKg
+                )
+            )
+        }
+    }
+
+    // ---------- Streak ----------
+    /** Dias consecutivos com registro de refeição, derivado do histórico. */
+    val currentStreak: StateFlow<Int> = historyTotals
+        .map { totals -> br.com.nutrimetric.app.utils.StreakCalculator.calculate(totals.map { it.date }) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
         )
 
 

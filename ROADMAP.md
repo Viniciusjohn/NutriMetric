@@ -71,6 +71,15 @@ Pré-requisitos que travam tudo se não existirem:
 
 ---
 
+## FASE 1.5 — Retenção Barata (✅ implementada)
+
+Features de retenção 100% locais (não dependem de contas externas), feitas antes da monetização:
+- **💧 Água**: `WaterEntity`/`WaterDao`, card na home com botões rápidos (200/500ml) e desfazer, meta configurável em Settings
+- **⚖️ Peso**: `WeightEntity`/`WeightDao`, card com peso atual + variação e diálogo de registro
+- **🔔 Lembrete diário**: WorkManager (`ReminderWorker`/`ReminderScheduler`), `POST_NOTIFICATIONS`, seção em Settings com Switch + TimePicker
+- **🔥 Streak**: `StreakCalculator` (função pura + teste unitário), badge no topo da home
+- AppDatabase: `version 4→5` (migração destrutiva; app sem usuários)
+
 ## FASE 2 — Monetização (~1–2 semanas)
 
 **Meta: assinatura funcionando em sandbox, paywall no lugar certo.**

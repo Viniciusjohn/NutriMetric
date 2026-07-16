@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,23 +14,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import br.com.nutrimetric.app.repository.ReminderSettings
 import br.com.nutrimetric.app.ui.viewmodel.MainViewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit
 ) {
     val nutritionGoals by viewModel.nutritionGoals.collectAsState()
+    val reminder by viewModel.reminderSettings.collectAsState()
 
     // Internal states initialized with current goals
     var calories by remember(nutritionGoals) { mutableStateOf(nutritionGoals.calories.toFloat()) }
     var protein by remember(nutritionGoals) { mutableStateOf(nutritionGoals.protein.toFloat()) }
     var carbs by remember(nutritionGoals) { mutableStateOf(nutritionGoals.carbs.toFloat()) }
     var fat by remember(nutritionGoals) { mutableStateOf(nutritionGoals.fat.toFloat()) }
+    var water by remember(nutritionGoals) { mutableStateOf(nutritionGoals.waterMl.toFloat()) }
 
     var showSuccessSnackbar by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    val notificationsPermission = rememberPermissionState(android.Manifest.permission.POST_NOTIFICATIONS)
 
     Scaffold(
         topBar = {
@@ -214,6 +224,87 @@ fun SettingsScreen(
                     }
                 }
 
+                // 5. Water goal slider
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "Meta de Água",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "${water.toInt()} ml",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Slider(
+                            value = water,
+                            onValueChange = { water = it },
+                            valueRange = 500f..5000f,
+                            steps = 89, // Steps of 50ml
+                            modifier = Modifier.testTag("water_slider")
+                        )
+                    }
+                }
+
+                // 6. Daily reminder
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Lembrete diário",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Switch(
+                                checked = reminder.enabled,
+                                onCheckedChange = { enabled ->
+                                    if (enabled && !notificationsPermission.status.isGranted) {
+                                        notificationsPermission.launchPermissionRequest()
+                                    }
+                                    viewModel.saveReminder(reminder.copy(enabled = enabled))
+                                },
+                                modifier = Modifier.testTag("reminder_switch")
+                            )
+                        }
+                        if (reminder.enabled) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Você será lembrado todos os dias às " +
+                                    String.format(java.util.Locale.US, "%02d:%02d", reminder.hour, reminder.minute) + ".",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { showTimePicker = true },
+                                modifier = Modifier.testTag("reminder_time_button")
+                            ) {
+                                Text("Alterar horário")
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
@@ -224,6 +315,7 @@ fun SettingsScreen(
                             carbs = carbs.toInt(),
                             fat = fat.toInt()
                         )
+                        viewModel.saveWaterGoal(water.toInt())
                         showSuccessSnackbar = true
                     },
                     modifier = Modifier
@@ -258,4 +350,46 @@ fun SettingsScreen(
             }
         }
     }
+
+    if (showTimePicker) {
+        ReminderTimePickerDialog(
+            initialHour = reminder.hour,
+            initialMinute = reminder.minute,
+            onConfirm = { hour, minute ->
+                viewModel.saveReminder(reminder.copy(enabled = true, hour = hour, minute = minute))
+                showTimePicker = false
+            },
+            onDismiss = { showTimePicker = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderTimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onConfirm: (Int, Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val state = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = true
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Horário do lembrete") },
+        text = {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                TimePicker(state = state)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(state.hour, state.minute) }) { Text("Confirmar") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
 }

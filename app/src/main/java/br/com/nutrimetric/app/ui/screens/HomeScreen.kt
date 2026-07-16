@@ -29,6 +29,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -63,6 +64,10 @@ fun HomeScreen(
     val todayTotals by viewModel.todayTotals.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
     val nutritionGoals by viewModel.nutritionGoals.collectAsState()
+    val waterTotalMl by viewModel.waterTotalMl.collectAsState()
+    val latestWeight by viewModel.latestWeight.collectAsState()
+    val recentWeights by viewModel.recentWeights.collectAsState()
+    val currentStreak by viewModel.currentStreak.collectAsState()
 
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -211,6 +216,21 @@ fun HomeScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ),
                 actions = {
+                    if (currentStreak > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            modifier = Modifier.testTag("streak_badge")
+                        ) {
+                            Text(
+                                text = "🔥 $currentStreak",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                     IconButton(
                         onClick = onNavigateToHistory,
                         modifier = Modifier.testTag("history_button")
@@ -465,91 +485,38 @@ fun HomeScreen(
                 }
             }
 
-            DashboardProgress(
-                todayTotals = todayTotals,
-                nutritionGoals = nutritionGoals,
-                selectedDateStr = selectedDateStr,
-                displayDate = displayDate,
-                onNavigateToSettings = onNavigateToSettings
-            )
-
-            if (todayMeals.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        shape = RoundedCornerShape(24.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CameraAlt,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(40.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Text(
-                                text = "PratoBr Tracker",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Tire uma foto do seu prato de comida brasileira para analisar automaticamente as calorias e macronutrientes com o Gemini AI.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Button(
-                                onClick = onNavigateToCamera,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                ),
-                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
-                                modifier = Modifier.testTag("empty_state_camera_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CameraAlt,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Tirar Foto do Prato", fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    DashboardProgress(
+                        todayTotals = todayTotals,
+                        nutritionGoals = nutritionGoals,
+                        selectedDateStr = selectedDateStr,
+                        displayDate = displayDate,
+                        onNavigateToSettings = onNavigateToSettings
+                    )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                item {
+                    WaterCard(
+                        currentMl = waterTotalMl,
+                        goalMl = nutritionGoals.waterMl,
+                        onAdd = { viewModel.addWater(it) },
+                        onUndo = { viewModel.undoLastWater() }
+                    )
+                }
+                item {
+                    WeightCard(
+                        latest = latestWeight,
+                        recent = recentWeights,
+                        onSave = { viewModel.saveWeight(it) }
+                    )
+                }
+                if (todayMeals.isEmpty()) {
+                    item { EmptyMealsCard(onNavigateToCamera = onNavigateToCamera) }
+                } else {
                     items(todayMeals) { meal ->
                         MealCard(meal = meal, onDelete = { viewModel.deleteMeal(meal.id) })
                     }
@@ -739,6 +706,211 @@ fun MealCard(meal: MealUiState, onDelete: () -> Unit) {
                     contentDescription = "Deletar refeição",
                     tint = MaterialTheme.colorScheme.error
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun WaterCard(
+    currentMl: Int,
+    goalMl: Int,
+    onAdd: (Int) -> Unit,
+    onUndo: () -> Unit
+) {
+    val progress = if (goalMl > 0) (currentMl.toFloat() / goalMl.toFloat()).coerceIn(0f, 1f) else 0f
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("💧 Água", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "$currentMl / $goalMl ml",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilledTonalButton(
+                    onClick = { onAdd(200) },
+                    modifier = Modifier.weight(1f).testTag("water_add_glass")
+                ) { Text("+ Copo 200ml") }
+                FilledTonalButton(
+                    onClick = { onAdd(500) },
+                    modifier = Modifier.weight(1f).testTag("water_add_bottle")
+                ) { Text("+ Garrafa 500ml") }
+                IconButton(onClick = onUndo, modifier = Modifier.testTag("water_undo")) {
+                    Icon(Icons.Default.Delete, contentDescription = "Desfazer último")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WeightCard(
+    latest: br.com.nutrimetric.app.data.local.WeightEntity?,
+    recent: List<br.com.nutrimetric.app.data.local.WeightEntity>,
+    onSave: (Double) -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    // Variação vs o registro anterior (recent vem ordenado do mais recente ao mais antigo)
+    val delta: Double? = if (recent.size >= 2) recent[0].weightKg - recent[1].weightKg else null
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("⚖️ Peso", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                if (latest != null) {
+                    Text(
+                        text = String.format(java.util.Locale.US, "%.1f kg", latest.weightKg),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (delta != null && delta != 0.0) {
+                        val sign = if (delta > 0) "+" else ""
+                        val color = if (delta > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        Text(
+                            text = String.format(java.util.Locale.US, "%s%.1f kg desde o último", sign, delta),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = color
+                        )
+                    }
+                } else {
+                    Text(
+                        "Nenhum registro ainda",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Button(onClick = { showDialog = true }, modifier = Modifier.testTag("weight_register")) {
+                Text("Registrar")
+            }
+        }
+    }
+
+    if (showDialog) {
+        var input by remember { mutableStateOf(latest?.weightKg?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "") }
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("Registrar peso") },
+            text = {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it.replace(',', '.') },
+                    label = { Text("Peso (kg)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.testTag("weight_input")
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        input.toDoubleOrNull()?.let { if (it > 0) onSave(it) }
+                        showDialog = false
+                    }
+                ) { Text("Salvar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+}
+
+@Composable
+fun EmptyMealsCard(onNavigateToCamera: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Nenhuma refeição hoje",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Tire uma foto do seu prato para analisar automaticamente as calorias e macronutrientes.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onNavigateToCamera,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                modifier = Modifier.testTag("empty_state_camera_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Tirar Foto do Prato", fontWeight = FontWeight.SemiBold)
             }
         }
     }
