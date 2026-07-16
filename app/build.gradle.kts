@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -22,11 +25,10 @@ if (file("google-services.json").exists()) {
 // chaves de IA que ficam só no servidor). Lida de local.properties (já
 // gitignorado) para não commitar segredos de conta, com fallback vazio para
 // o projeto continuar compilando antes do RevenueCat ser configurado.
-val localProperties = java.util.Properties().apply {
-  val localPropertiesFile = rootProject.file("local.properties")
-  if (localPropertiesFile.exists()) {
-    localPropertiesFile.inputStream().use { load(it) }
-  }
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+  localProperties.load(FileInputStream(localPropertiesFile))
 }
 
 android {

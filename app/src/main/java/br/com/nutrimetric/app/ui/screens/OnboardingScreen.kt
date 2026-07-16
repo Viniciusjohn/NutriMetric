@@ -27,6 +27,7 @@ private enum class OnboardingStep {
 
 private data class Bubble(val fromNutri: Boolean, val text: String)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
     viewModel: MainViewModel,

@@ -5,13 +5,13 @@ import android.content.Context
 import br.com.nutrimetric.app.BuildConfig
 import com.google.firebase.auth.FirebaseAuth
 import com.revenuecat.purchases.CustomerInfo
-import com.revenuecat.purchases.LogInCallback
 import com.revenuecat.purchases.Offering
 import com.revenuecat.purchases.Package
 import com.revenuecat.purchases.PurchaseParams
 import com.revenuecat.purchases.Purchases
 import com.revenuecat.purchases.PurchasesConfiguration
 import com.revenuecat.purchases.PurchasesError
+import com.revenuecat.purchases.interfaces.LogInCallback
 import com.revenuecat.purchases.interfaces.PurchaseCallback
 import com.revenuecat.purchases.interfaces.ReceiveCustomerInfoCallback
 import com.revenuecat.purchases.interfaces.ReceiveOfferingsCallback
