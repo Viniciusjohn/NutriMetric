@@ -222,3 +222,28 @@ export const revenuecatWebhook = onRequest(
     res.status(200).send("OK");
   }
 );
+
+/**
+ * Exclusão de conta (obrigatório pela Play Store — usuário precisa conseguir
+ * apagar os próprios dados dentro do app). Apaga o documento users/{uid} e
+ * todas as subcoleções (ex: usage/*) recursivamente, depois remove o usuário
+ * do Firebase Auth. Irreversível.
+ */
+export const deleteAccount = onCall({ region: REGION }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para excluir sua conta.");
+  }
+
+  await db.recursiveDelete(db.doc(`users/${uid}`));
+
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (e) {
+    logger.error(`Falha ao excluir usuário ${uid} do Firebase Auth`, e);
+    throw new HttpsError("internal", "Não foi possível excluir sua conta. Tente novamente.");
+  }
+
+  logger.info(`Conta excluída: ${uid}`);
+  return { success: true };
+});

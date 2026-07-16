@@ -105,6 +105,66 @@ class MealRepository(
         dailyConsumptionDao.deleteByMealId(mealId)
     }
 
+    suspend fun getMealById(mealId: Long): MealEntity? = mealDao.getMealById(mealId)
+
+    /**
+     * Atualiza uma refeição já salva (via PlateReviewScreen em modo edição).
+     * Espelha [saveMeal], mas substitui o registro existente em vez de inserir
+     * um novo, e recria a entrada de consumo diário correspondente.
+     */
+    suspend fun updateMeal(
+        mealId: Long,
+        alimentos: List<Alimento>,
+        totalMilliKcal: Long,
+        totalMilliProtein: Long,
+        totalMilliCarbs: Long,
+        totalMilliFat: Long
+    ) {
+        val existing = mealDao.getMealById(mealId) ?: return
+        mealDao.updateMeal(
+            existing.copy(
+                totalMilliKcal = totalMilliKcal,
+                totalMilliProtein = totalMilliProtein,
+                totalMilliCarbs = totalMilliCarbs,
+                totalMilliFat = totalMilliFat,
+                foodsJson = convertFoodsToJson(alimentos)
+            )
+        )
+
+        dailyConsumptionDao.deleteByMealId(mealId)
+        dailyConsumptionDao.insert(
+            br.com.nutrimetric.app.data.local.DailyConsumptionEntity(
+                mealId = mealId,
+                date = existing.date,
+                kcal = totalMilliKcal / 1000.0,
+                protein = totalMilliProtein / 1000.0,
+                carbohydrate = totalMilliCarbs / 1000.0,
+                lipid = totalMilliFat / 1000.0
+            )
+        )
+    }
+
+    /** Duplica uma refeição existente para hoje, sem precisar refotografar. */
+    suspend fun repeatMealToday(mealId: Long): Long? {
+        val existing = mealDao.getMealById(mealId) ?: return null
+        val alimentos = parseFoodsFromJson(existing.foodsJson)
+        return saveMeal(
+            imagePath = "",
+            imageBase64 = "",
+            alimentos = alimentos,
+            totalMilliKcal = existing.totalMilliKcal,
+            totalMilliProtein = existing.totalMilliProtein,
+            totalMilliCarbs = existing.totalMilliCarbs,
+            totalMilliFat = existing.totalMilliFat
+        )
+    }
+
+    suspend fun setFavorite(mealId: Long, favorite: Boolean) {
+        mealDao.setFavorite(mealId, favorite)
+    }
+
+    fun getFavoritesFlow(): kotlinx.coroutines.flow.Flow<List<MealEntity>> = mealDao.getFavoritesFlow()
+
     suspend fun getTodayTotals(): DailyTotals {
         val today = java.time.LocalDate.now().toString()
         return DailyTotals(

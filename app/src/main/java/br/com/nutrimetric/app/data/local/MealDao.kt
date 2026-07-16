@@ -5,13 +5,20 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MealDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMeal(meal: MealEntity): Long
-    
+
+    @Update
+    suspend fun updateMeal(meal: MealEntity)
+
+    @Query("SELECT * FROM meals WHERE id = :id")
+    suspend fun getMealById(id: Long): MealEntity?
+
     @Query("SELECT * FROM meals WHERE date = :date ORDER BY timestamp DESC")
     suspend fun getMealsByDate(date: String): List<MealEntity>
 
@@ -23,9 +30,15 @@ interface MealDao {
     
     @Delete
     suspend fun deleteMeal(meal: MealEntity)
-    
+
     @Query("DELETE FROM meals WHERE id = :mealId")
     suspend fun deleteMealById(mealId: Long)
+
+    @Query("UPDATE meals SET isFavorite = :favorite WHERE id = :id")
+    suspend fun setFavorite(id: Long, favorite: Boolean)
+
+    @Query("SELECT * FROM meals WHERE isFavorite = 1 ORDER BY timestamp DESC")
+    fun getFavoritesFlow(): Flow<List<MealEntity>>
     
     @Query("SELECT SUM(totalMilliKcal) FROM meals WHERE date = :date")
     suspend fun getTotalMilliKcalByDate(date: String): Long?

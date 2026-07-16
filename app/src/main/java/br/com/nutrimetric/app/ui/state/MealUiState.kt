@@ -12,6 +12,14 @@ data class AlimentoUiState(
     val formattedGordura: String
 )
 
+/** Versão resumida de uma refeição favoritada, exibida na tira de "repetir refeição" da Home. */
+@Immutable
+data class FavoriteMealUiState(
+    val id: Long,
+    val label: String,
+    val formattedKcal: String
+)
+
 @Immutable
 data class MealUiState(
     val id: Long,
@@ -23,5 +31,6 @@ data class MealUiState(
     val formattedTime: String,
     val imagePath: String,
     val imageBase64: String,
-    val foods: List<AlimentoUiState>
+    val foods: List<AlimentoUiState>,
+    val isFavorite: Boolean = false
 )

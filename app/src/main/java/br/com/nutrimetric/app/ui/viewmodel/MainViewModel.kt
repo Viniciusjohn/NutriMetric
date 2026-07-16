@@ -216,7 +216,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     formattedTime = formatter.format(java.util.Date(meal.timestamp)),
                     imagePath = meal.imagePath,
                     imageBase64 = meal.imageBase64,
-                    foods = foodsUi
+                    foods = foodsUi,
+                    isFavorite = meal.isFavorite
                 )
             }
         }
@@ -626,6 +627,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mealRepository.deleteMeal(id)
             loadTodayData()
+        }
+    }
+
+    fun toggleFavorite(id: Long, favorite: Boolean) {
+        viewModelScope.launch {
+            mealRepository.setFavorite(id, favorite)
+        }
+    }
+
+    /** Duplica uma refeição para hoje, sem precisar refotografar. */
+    fun repeatMealToday(id: Long) {
+        viewModelScope.launch {
+            mealRepository.repeatMealToday(id)
+        }
+    }
+
+    val favoriteMeals: StateFlow<List<br.com.nutrimetric.app.ui.state.FavoriteMealUiState>> =
+        mealRepository.getFavoritesFlow()
+            .map { meals ->
+                meals.map { meal ->
+                    val foods = mealRepository.parseFoodsFromJson(meal.foodsJson)
+                    val label = when {
+                        foods.isEmpty() -> meal.mealType
+                        foods.size == 1 -> foods.first().nome
+                        else -> "${foods.first().nome} +${foods.size - 1}"
+                    }
+                    br.com.nutrimetric.app.ui.state.FavoriteMealUiState(
+                        id = meal.id,
+                        label = label,
+                        formattedKcal = "${meal.totalMilliKcal / 1000} kcal"
+                    )
+                }
+            }
+            .flowOn(kotlinx.coroutines.Dispatchers.IO)
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
+
+    private val tacoDao = tacoDb.tacoDao()
+
+    /** Busca alimentos na base TACO por nome parcial (usado na entrada manual). */
+    suspend fun searchTacoFoods(query: String): List<br.com.nutrimetric.app.data.local.TacoEntity> {
+        if (query.isBlank()) return emptyList()
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            tacoDao.searchFoods(query)
         }
     }
 }

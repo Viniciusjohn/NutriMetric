@@ -29,7 +29,9 @@ data class PlateScreenState(
     val imageBase64: String = "",
     val isLoading: Boolean = false,
     val isSaved: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    /** Não-nulo quando a tela está editando uma refeição já salva (em vez de criar uma nova). */
+    val editingMealId: Long? = null
 )
 
 sealed class PlateEvent {

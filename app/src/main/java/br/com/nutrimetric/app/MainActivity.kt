@@ -7,15 +7,19 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import br.com.nutrimetric.app.repository.AuthRepository
 import br.com.nutrimetric.app.ui.screens.AnalysisScreen
 import br.com.nutrimetric.app.ui.screens.BarcodeScannerScreen
 import br.com.nutrimetric.app.ui.screens.CameraScreen
+import br.com.nutrimetric.app.ui.screens.EditMealScreen
 import br.com.nutrimetric.app.ui.screens.HomeScreen
 import br.com.nutrimetric.app.ui.screens.LoginScreen
 import br.com.nutrimetric.app.ui.screens.ManualEntryScreen
@@ -67,7 +71,8 @@ class MainActivity : ComponentActivity() {
                 onNavigateToManualEntry = { navController.navigate("manual_entry") },
                 onNavigateToBarcode = { navController.navigate("barcode") },
                 onNavigateToSettings = { navController.navigate("settings") },
-                onNavigateToHistory = { navController.navigate("history") }
+                onNavigateToHistory = { navController.navigate("history") },
+                onNavigateToEditMeal = { mealId -> navController.navigate("edit_meal/$mealId") }
               )
             }
             composable("barcode") {
@@ -84,13 +89,20 @@ class MainActivity : ComponentActivity() {
             composable("history") {
               HistoryScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateToEditMeal = { mealId -> navController.navigate("edit_meal/$mealId") }
               )
             }
             composable("settings") {
               SettingsScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                authRepository = authRepository,
+                onBack = { navController.popBackStack() },
+                onSignedOut = {
+                  navController.navigate("login") {
+                    popUpTo(0)
+                  }
+                }
               )
             }
             composable("camera") {
@@ -109,6 +121,16 @@ class MainActivity : ComponentActivity() {
             composable("manual_entry") {
               ManualEntryScreen(
                 viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+              )
+            }
+            composable(
+              route = "edit_meal/{mealId}",
+              arguments = listOf(navArgument("mealId") { type = NavType.LongType })
+            ) { backStackEntry ->
+              val mealId = backStackEntry.arguments?.getLong("mealId") ?: 0L
+              EditMealScreen(
+                mealId = mealId,
                 onBack = { navController.popBackStack() }
               )
             }

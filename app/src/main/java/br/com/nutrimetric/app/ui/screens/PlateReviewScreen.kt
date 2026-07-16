@@ -44,15 +44,20 @@ fun PlateReviewScreen(
     onBack: () -> Unit,
     onConfirmSuccess: () -> Unit,
     modifier: Modifier = Modifier,
+    editingMealId: Long? = null,
     viewModel: PlateViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // Initialize the plate state with analyzed food items
-    LaunchedEffect(imageUri) {
-        viewModel.initialize(imageBase64, imageUri, initialItems)
+    // Modo edição carrega uma refeição já salva; modo normal usa o resultado da análise por foto.
+    LaunchedEffect(editingMealId, imageUri) {
+        if (editingMealId != null) {
+            viewModel.initializeForEdit(editingMealId)
+        } else {
+            viewModel.initialize(imageBase64, imageUri, initialItems)
+        }
     }
 
     // React to successful save
@@ -80,7 +85,7 @@ fun PlateReviewScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Revisar Prato",
+                        text = if (editingMealId != null) "Editar Refeição" else "Revisar Prato",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -115,8 +120,9 @@ fun PlateReviewScreen(
                 contentPadding = PaddingValues(bottom = 140.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Header Image card
-                if (imageUri.isNotEmpty()) {
+                // Header Image card (usa o estado, não o parâmetro: no modo edição a
+                // imagem vem de PlateViewModel.initializeForEdit, não do parâmetro imageUri)
+                if (state.imageUri.isNotEmpty()) {
                     item {
                         Box(
                             modifier = Modifier
@@ -126,7 +132,7 @@ fun PlateReviewScreen(
                                 .clip(RoundedCornerShape(20.dp))
                         ) {
                             AsyncImage(
-                                model = imageUri,
+                                model = state.imageUri,
                                 contentDescription = "Foto do Prato",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
@@ -565,7 +571,7 @@ fun MacroCheckoutBottomBar(
                 enabled = state.items.isNotEmpty() && !state.isLoading
             ) {
                 Text(
-                    text = "Confirmar Prato",
+                    text = if (state.editingMealId != null) "Salvar Alterações" else "Confirmar Prato",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )

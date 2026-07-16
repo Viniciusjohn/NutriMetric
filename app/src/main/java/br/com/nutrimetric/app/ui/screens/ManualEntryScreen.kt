@@ -1,5 +1,6 @@
 package br.com.nutrimetric.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -15,7 +16,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import br.com.nutrimetric.app.data.local.TacoEntity
 import br.com.nutrimetric.app.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,6 +36,19 @@ fun ManualEntryScreen(
 
     val mealTypes = listOf("Café da Manhã", "Almoço", "Jantar", "Lanche")
     var expandedMealType by remember { mutableStateOf(false) }
+
+    // Busca na tabela TACO (usa TacoDao.searchFoods já existente)
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<TacoEntity>>(emptyList()) }
+
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.length < 2) {
+            searchResults = emptyList()
+        } else {
+            delay(300) // debounce
+            searchResults = viewModel.searchTacoFoods(searchQuery)
+        }
+    }
 
     val isInputValid = foodName.isNotBlank() && (caloriesStr.toLongOrNull() ?: -1L) >= 0L
 
@@ -105,6 +121,48 @@ fun ManualEntryScreen(
                             },
                             contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                         )
+                    }
+                }
+            }
+
+            // Busca na tabela TACO (opcional): seleciona um alimento e autopreenche os campos
+            Column {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Buscar na tabela TACO (opcional)") },
+                    placeholder = { Text("Ex: arroz, feijão...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (searchResults.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column {
+                            searchResults.forEach { food ->
+                                Text(
+                                    text = "${food.description} — ${food.energyKcal?.toInt() ?: 0} kcal/100g",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            foodName = food.description
+                                            gramsStr = "100"
+                                            caloriesStr = (food.energyKcal?.toLong() ?: 0L).toString()
+                                            proteinStr = (food.protein?.toLong() ?: 0L).toString()
+                                            carbsStr = (food.carbohydrate?.toLong() ?: 0L).toString()
+                                            fatStr = (food.lipid?.toLong() ?: 0L).toString()
+                                            searchQuery = ""
+                                            searchResults = emptyList()
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }

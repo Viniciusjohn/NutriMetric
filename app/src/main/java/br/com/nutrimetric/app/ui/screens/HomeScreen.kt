@@ -20,8 +20,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -57,7 +60,8 @@ fun HomeScreen(
     onNavigateToManualEntry: () -> Unit,
     onNavigateToBarcode: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToHistory: () -> Unit
+    onNavigateToHistory: () -> Unit,
+    onNavigateToEditMeal: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val todayMeals by viewModel.todayMealsUiState.collectAsState()
@@ -68,6 +72,7 @@ fun HomeScreen(
     val latestWeight by viewModel.latestWeight.collectAsState()
     val recentWeights by viewModel.recentWeights.collectAsState()
     val currentStreak by viewModel.currentStreak.collectAsState()
+    val favoriteMeals by viewModel.favoriteMeals.collectAsState()
 
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -514,11 +519,25 @@ fun HomeScreen(
                         onSave = { viewModel.saveWeight(it) }
                     )
                 }
+                if (favoriteMeals.isNotEmpty()) {
+                    item {
+                        FavoritesRow(
+                            favorites = favoriteMeals,
+                            onAddToday = { viewModel.repeatMealToday(it) }
+                        )
+                    }
+                }
                 if (todayMeals.isEmpty()) {
                     item { EmptyMealsCard(onNavigateToCamera = onNavigateToCamera) }
                 } else {
                     items(todayMeals) { meal ->
-                        MealCard(meal = meal, onDelete = { viewModel.deleteMeal(meal.id) })
+                        MealCard(
+                            meal = meal,
+                            onDelete = { viewModel.deleteMeal(meal.id) },
+                            onEdit = { onNavigateToEditMeal(meal.id) },
+                            onToggleFavorite = { fav -> viewModel.toggleFavorite(meal.id, fav) },
+                            onRepeat = { viewModel.repeatMealToday(meal.id) }
+                        )
                     }
                 }
             }
@@ -527,7 +546,63 @@ fun HomeScreen(
 }
 
 @Composable
-fun MealCard(meal: MealUiState, onDelete: () -> Unit) {
+fun FavoritesRow(
+    favorites: List<br.com.nutrimetric.app.ui.state.FavoriteMealUiState>,
+    onAddToday: (Long) -> Unit
+) {
+    Column {
+        Text(
+            text = "⭐ Favoritos",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        androidx.compose.foundation.lazy.LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(favorites, key = { it.id }) { fav ->
+                Card(
+                    modifier = Modifier
+                        .width(160.dp)
+                        .clickable { onAddToday(fav.id) },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = fav.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Text(
+                            text = fav.formattedKcal,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Adicionar hoje",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MealCard(
+    meal: MealUiState,
+    onDelete: () -> Unit,
+    onEdit: () -> Unit,
+    onToggleFavorite: (Boolean) -> Unit,
+    onRepeat: () -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
@@ -697,15 +772,35 @@ fun MealCard(meal: MealUiState, onDelete: () -> Unit) {
                     }
                 }
             }
-            IconButton(
-                onClick = { showDeleteConfirmDialog = true },
-                modifier = Modifier.align(Alignment.CenterVertically)
-            ) {
-                Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = "Deletar refeição",
-                    tint = MaterialTheme.colorScheme.error
-                )
+            Column(modifier = Modifier.align(Alignment.CenterVertically)) {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        contentDescription = "Editar refeição",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                IconButton(onClick = { onToggleFavorite(!meal.isFavorite) }) {
+                    Icon(
+                        imageVector = if (meal.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                        contentDescription = if (meal.isFavorite) "Remover dos favoritos" else "Favoritar",
+                        tint = if (meal.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = onRepeat) {
+                    Icon(
+                        Icons.Filled.Replay,
+                        contentDescription = "Repetir refeição hoje",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = { showDeleteConfirmDialog = true }) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Deletar refeição",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
     }

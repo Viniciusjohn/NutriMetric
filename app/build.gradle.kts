@@ -5,13 +5,15 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.google.services) apply false
+  alias(libs.plugins.firebase.crashlytics) apply false
 }
 
-// O plugin google-services exige o arquivo google-services.json (baixado do
-// console do Firebase). Aplicamos condicionalmente para o projeto continuar
+// google-services e crashlytics exigem o google-services.json (baixado do
+// console do Firebase). Aplicados condicionalmente para o projeto continuar
 // compilando antes de o projeto Firebase ser criado.
 if (file("google-services.json").exists()) {
   apply(plugin = libs.plugins.google.services.get().pluginId)
+  apply(plugin = libs.plugins.firebase.crashlytics.get().pluginId)
 } else {
   logger.warn("google-services.json ausente — Firebase desativado neste build. Veja docs/SETUP-FIREBASE.md")
 }
@@ -106,6 +108,8 @@ dependencies {
   implementation(libs.firebase.auth)
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.functions)
+  implementation(libs.firebase.analytics)
+  implementation(libs.firebase.crashlytics)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
   implementation(libs.googleid)

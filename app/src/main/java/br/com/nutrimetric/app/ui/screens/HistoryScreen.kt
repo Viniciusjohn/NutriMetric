@@ -43,7 +43,8 @@ import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
 @Composable
 fun HistoryScreen(
     viewModel: MainViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToEditMeal: (Long) -> Unit
 ) {
     val historyTotals by viewModel.historyTotals.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
@@ -587,7 +588,7 @@ fun HistoryScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { /* Opcional: ver detalhes se houver */ },
+                                .clickable { onNavigateToEditMeal(meal.id) },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)

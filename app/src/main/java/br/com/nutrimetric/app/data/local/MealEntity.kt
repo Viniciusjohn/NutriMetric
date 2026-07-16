@@ -21,8 +21,9 @@ data class MealEntity(
     val confidence: Double,
     
     val foodsJson: String,
-    
+
     val timestamp: Long = System.currentTimeMillis(),
-    val date: String = java.time.LocalDate.now().toString()
+    val date: String = java.time.LocalDate.now().toString(),
+    val isFavorite: Boolean = false
 )
 

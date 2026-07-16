@@ -13,7 +13,7 @@ import androidx.room.TypeConverters
         WaterEntity::class,
         WeightEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

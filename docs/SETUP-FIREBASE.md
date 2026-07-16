@@ -58,7 +58,24 @@ cd functions && npm install && cd ..
 firebase deploy --only functions,firestore:rules
 ```
 
-## 5. Testar
+## 5. Habilitar GitHub Pages (política de privacidade + termos)
+
+O app já tem `docs/privacy-policy.html` e `docs/terms.html` prontos, e a tela
+de Configurações já linka para
+`https://viniciusjohn.github.io/NutriMetric/privacy-policy.html` e
+`.../terms.html`. Só falta ativar a publicação (passo do dono do repositório,
+não posso fazer isso por você):
+
+1. No GitHub, vá em **Settings → Pages** do repositório
+2. Em "Build and deployment" → Source: **Deploy from a branch**
+3. Branch: `main` (ou a branch padrão) → pasta: **/docs** → **Save**
+4. Aguarde alguns minutos e confira se as páginas abrem nas URLs acima
+
+> Se o nome de usuário/repositório do GitHub Pages for diferente do assumido
+> (`viniciusjohn.github.io/NutriMetric/`), ajuste as constantes
+> `PRIVACY_POLICY_URL`/`TERMS_URL` em `SettingsScreen.kt`.
+
+## 6. Testar
 
 1. Abra o projeto no Android Studio e rode o app
 2. A tela de **login com Google** deve aparecer (se cair direto na home, o
@@ -76,6 +93,6 @@ firebase deploy --only functions,firestore:rules
 |---|---|---|
 | **Google Play Console** | https://play.google.com/console/signup | US$ 25 único. Conta pessoal nova exige 12 testadores × 14 dias antes de produção — criar CEDO |
 | **RevenueCat** | https://app.revenuecat.com/signup | Grátis até US$ 2,5k/mês de receita. Necessário na Fase 2 |
-| **Página de privacidade** | GitHub Pages serve | Obrigatória para publicar (LGPD) |
+| **Página de privacidade** | Passo 5 acima (GitHub Pages) | Obrigatória para publicar (LGPD) — já feito se o passo 5 estiver ✅ |
 
 Quando o passo 5 estiver verde, me avise: começo a **Fase 2 (RevenueCat + paywall)**.

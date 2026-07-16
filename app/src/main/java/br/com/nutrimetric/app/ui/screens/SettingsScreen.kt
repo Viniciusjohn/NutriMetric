@@ -1,33 +1,52 @@
 package br.com.nutrimetric.app.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import br.com.nutrimetric.app.repository.AuthRepository
 import br.com.nutrimetric.app.repository.ReminderSettings
 import br.com.nutrimetric.app.ui.viewmodel.MainViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import kotlinx.coroutines.launch
+
+private const val PRIVACY_POLICY_URL = "https://viniciusjohn.github.io/NutriMetric/privacy-policy.html"
+private const val TERMS_URL = "https://viniciusjohn.github.io/NutriMetric/terms.html"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: MainViewModel,
-    onBack: () -> Unit
+    authRepository: AuthRepository,
+    onBack: () -> Unit,
+    onSignedOut: () -> Unit
 ) {
     val nutritionGoals by viewModel.nutritionGoals.collectAsState()
     val reminder by viewModel.reminderSettings.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var isDeletingAccount by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
 
     // Internal states initialized with current goals
     var calories by remember(nutritionGoals) { mutableStateOf(nutritionGoals.calories.toFloat()) }
@@ -305,6 +324,80 @@ fun SettingsScreen(
                     }
                 }
 
+                // 7. Conta (logout, exclusão, documentos legais)
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            "Conta",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        TextButton(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL))
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("privacy_policy_link")
+                        ) {
+                            Icon(Icons.Default.Policy, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Política de Privacidade", modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
+                        }
+                        TextButton(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(TERMS_URL))
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("terms_link")
+                        ) {
+                            Icon(Icons.Default.Policy, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Termos de Uso", modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                        TextButton(
+                            onClick = {
+                                authRepository.signOut()
+                                onSignedOut()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("logout_button")
+                        ) {
+                            Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Sair", modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
+                        }
+                        TextButton(
+                            onClick = { showDeleteConfirmDialog = true },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("delete_account_button")
+                        ) {
+                            Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Excluir Conta", modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
+                        }
+                        deleteError?.let { error ->
+                            Text(
+                                text = error,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
@@ -360,6 +453,55 @@ fun SettingsScreen(
                 showTimePicker = false
             },
             onDismiss = { showTimePicker = false }
+        )
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isDeletingAccount) showDeleteConfirmDialog = false },
+            title = { Text("Excluir conta") },
+            text = {
+                Text(
+                    "Isso apaga permanentemente sua conta e todos os seus dados (refeições, metas, histórico). " +
+                        "Essa ação não pode ser desfeita."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDeletingAccount,
+                    onClick = {
+                        isDeletingAccount = true
+                        deleteError = null
+                        scope.launch {
+                            val result = authRepository.deleteAccount()
+                            isDeletingAccount = false
+                            result.fold(
+                                onSuccess = {
+                                    showDeleteConfirmDialog = false
+                                    onSignedOut()
+                                },
+                                onFailure = { e ->
+                                    deleteError = "Não foi possível excluir a conta: ${e.message}"
+                                }
+                            )
+                        }
+                    }
+                ) {
+                    if (isDeletingAccount) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Excluir", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isDeletingAccount,
+                    onClick = { showDeleteConfirmDialog = false }
+                ) {
+                    Text("Cancelar")
+                }
+            }
         )
     }
 }

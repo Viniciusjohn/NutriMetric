@@ -69,8 +69,48 @@ class PlateViewModel(application: Application) : AndroidViewModel(application) {
             imageBase64 = imageBase64,
             isLoading = false,
             isSaved = false,
-            error = null
+            error = null,
+            editingMealId = null
         ).recalculateTotals()
+    }
+
+    /** Carrega uma refeição já salva para edição, em vez de uma nova análise por foto. */
+    fun initializeForEdit(mealId: Long) {
+        viewModelScope.launch {
+            val meal = mealRepository.getMealById(mealId)
+            if (meal == null) {
+                _state.update { it.copy(error = "Refeição não encontrada") }
+                return@launch
+            }
+            val alimentos = mealRepository.parseFoodsFromJson(meal.foodsJson)
+            val itemsList = alimentos.mapIndexed { index, food ->
+                val grams = food.gramas.coerceAtLeast(1)
+                PlateItemUiState(
+                    id = "edit_${index}_${meal.id}",
+                    name = food.nome,
+                    grams = grams,
+                    formattedGrams = "${grams}g",
+                    formattedProtein = "${food.proteina}g",
+                    formattedCarbs = "${food.carbo}g",
+                    formattedFat = "${food.gordura}g",
+                    formattedKcal = "${food.kcal} kcal",
+                    milliKcalPer100g = food.kcal.toLong() * 1000L * 100 / grams,
+                    milliProteinPer100g = food.proteina.toLong() * 1000L * 100 / grams,
+                    milliCarbsPer100g = food.carbo.toLong() * 1000L * 100 / grams,
+                    milliFatPer100g = food.gordura.toLong() * 1000L * 100 / grams
+                )
+            }
+
+            _state.value = PlateScreenState(
+                items = itemsList,
+                imageUri = meal.imagePath,
+                imageBase64 = "",
+                isLoading = false,
+                isSaved = false,
+                error = null,
+                editingMealId = meal.id
+            ).recalculateTotals()
+        }
     }
 
     fun onEvent(event: PlateEvent) {
@@ -195,15 +235,27 @@ class PlateViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
-                mealRepository.saveMeal(
-                    imagePath = currentState.imageUri,
-                    imageBase64 = currentState.imageBase64,
-                    alimentos = alimentos,
-                    totalMilliKcal = totalMilliKcal,
-                    totalMilliProtein = totalMilliProtein,
-                    totalMilliCarbs = totalMilliCarbs,
-                    totalMilliFat = totalMilliFat
-                )
+                val editingId = currentState.editingMealId
+                if (editingId != null) {
+                    mealRepository.updateMeal(
+                        mealId = editingId,
+                        alimentos = alimentos,
+                        totalMilliKcal = totalMilliKcal,
+                        totalMilliProtein = totalMilliProtein,
+                        totalMilliCarbs = totalMilliCarbs,
+                        totalMilliFat = totalMilliFat
+                    )
+                } else {
+                    mealRepository.saveMeal(
+                        imagePath = currentState.imageUri,
+                        imageBase64 = currentState.imageBase64,
+                        alimentos = alimentos,
+                        totalMilliKcal = totalMilliKcal,
+                        totalMilliProtein = totalMilliProtein,
+                        totalMilliCarbs = totalMilliCarbs,
+                        totalMilliFat = totalMilliFat
+                    )
+                }
 
                 _state.update { it.copy(isLoading = false, isSaved = true) }
             } catch (e: Exception) {

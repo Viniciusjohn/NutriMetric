@@ -80,6 +80,19 @@ Features de retenção 100% locais (não dependem de contas externas), feitas an
 - **🔥 Streak**: `StreakCalculator` (função pura + teste unitário), badge no topo da home
 - AppDatabase: `version 4→5` (migração destrutiva; app sem usuários)
 
+## FASE 1.6 — Confiança na IA (✅ implementada)
+
+- **✏️ Editar refeição salva**: `MealDao.updateMeal`/`getMealById`, `PlateReviewScreen`/`PlateViewModel` ganharam modo edição (`editingMealId`), rota `edit_meal/{mealId}`, ícone de editar no `MealCard` e no card do `HistoryScreen`
+- **🔍 Busca manual TACO**: liga a query `TacoDao.searchFoods()` (já existia, estava órfã) na `ManualEntryScreen` com autopreenchimento de macros
+- **⭐ Favoritos/repetir**: `MealEntity.isFavorite` (AppDatabase `version 5→6`), `FavoritesRow` na home, ícones de estrela/repetir no `MealCard` — duplica uma refeição pro dia atual sem re-fotografar
+- Nota: múltiplos itens por foto já funcionava (não era gap); micronutrientes e widget de tela inicial ficaram fora de escopo (adiados)
+
+## FASE 2.5 — Compliance de Publicação (✅ implementada, antecipada da Fase 5)
+
+- **🔐 Logout + Exclusão de conta**: Cloud Function `deleteAccount` (apaga Firestore recursivamente + Firebase Auth), `AuthRepository.deleteAccount()`, seção "Conta" em Settings
+- **📄 Política de privacidade + Termos de uso**: `docs/privacy-policy.html`, `docs/terms.html`, linkados em Settings — pendente apenas habilitar GitHub Pages (passo manual, ver `docs/SETUP-FIREBASE.md`)
+- **📊 Firebase Analytics + Crashlytics**: dependências e plugin adicionados (aplicado condicionalmente, mesmo padrão do `google-services`) — sem eventos de funil customizados ainda (aguardam Fase 2/3)
+
 ## FASE 2 — Monetização (~1–2 semanas)
 
 **Meta: assinatura funcionando em sandbox, paywall no lugar certo.**

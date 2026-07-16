@@ -11,6 +11,7 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -64,6 +65,23 @@ class AuthRepository {
 
     fun signOut() {
         auth.signOut()
+    }
+
+    /**
+     * Apaga a conta e todos os dados do usuário (Firestore + Firebase Auth) via
+     * a Cloud Function `deleteAccount` — irreversível. Ver functions/src/index.ts.
+     */
+    suspend fun deleteAccount(): Result<Unit> {
+        return try {
+            FirebaseFunctions.getInstance(AnalysisRepository.REGION)
+                .getHttpsCallable("deleteAccount")
+                .call()
+                .await()
+            signOut()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     /**
