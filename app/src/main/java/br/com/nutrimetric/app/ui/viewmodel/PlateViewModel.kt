@@ -236,7 +236,7 @@ class PlateViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val editingId = currentState.editingMealId
-                if (editingId != null) {
+                val newMealId: Long? = if (editingId != null) {
                     mealRepository.updateMeal(
                         mealId = editingId,
                         alimentos = alimentos,
@@ -245,6 +245,7 @@ class PlateViewModel(application: Application) : AndroidViewModel(application) {
                         totalMilliCarbs = totalMilliCarbs,
                         totalMilliFat = totalMilliFat
                     )
+                    null
                 } else {
                     mealRepository.saveMeal(
                         imagePath = currentState.imageUri,
@@ -257,7 +258,7 @@ class PlateViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
-                _state.update { it.copy(isLoading = false, isSaved = true) }
+                _state.update { it.copy(isLoading = false, isSaved = true, savedMealId = newMealId) }
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = "Erro ao salvar refeição: ${e.message}") }
             }

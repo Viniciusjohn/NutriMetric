@@ -31,7 +31,9 @@ data class PlateScreenState(
     val isSaved: Boolean = false,
     val error: String? = null,
     /** Não-nulo quando a tela está editando uma refeição já salva (em vez de criar uma nova). */
-    val editingMealId: Long? = null
+    val editingMealId: Long? = null,
+    /** Id da refeição recém-criada (null em edições) — usado pelo chat para comentar a refeição. */
+    val savedMealId: Long? = null
 )
 
 sealed class PlateEvent {

@@ -11,9 +11,10 @@ import androidx.room.TypeConverters
         MealEntity::class,
         TacoMismatchEntity::class,
         WaterEntity::class,
-        WeightEntity::class
+        WeightEntity::class,
+        ChatMessageEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -22,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun tacoMismatchDao(): TacoMismatchDao
     abstract fun waterDao(): WaterDao
     abstract fun weightDao(): WeightDao
+    abstract fun chatMessageDao(): ChatMessageDao
     
     companion object {
         @Volatile

@@ -32,7 +32,8 @@ import br.com.nutrimetric.app.ui.viewmodel.MainViewModel
 fun AnalysisScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit,
-    onNavigateToPaywall: (String?) -> Unit
+    onNavigateToPaywall: (String?) -> Unit,
+    onMealSaved: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val uri by viewModel.currentImageUri.collectAsState()
@@ -65,8 +66,11 @@ fun AnalysisScreen(
                 viewModel.resetAnalysis()
                 onBack()
             },
-            onConfirmSuccess = {
+            onConfirmSuccess = { savedMealId ->
                 viewModel.resetAnalysis()
+                if (savedMealId != null) {
+                    onMealSaved(savedMealId)
+                }
                 onBack()
             }
         )

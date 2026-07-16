@@ -19,10 +19,12 @@ import br.com.nutrimetric.app.repository.AuthRepository
 import br.com.nutrimetric.app.ui.screens.AnalysisScreen
 import br.com.nutrimetric.app.ui.screens.BarcodeScannerScreen
 import br.com.nutrimetric.app.ui.screens.CameraScreen
+import br.com.nutrimetric.app.ui.screens.ChatScreen
 import br.com.nutrimetric.app.ui.screens.EditMealScreen
 import br.com.nutrimetric.app.ui.screens.HomeScreen
 import br.com.nutrimetric.app.ui.screens.LoginScreen
 import br.com.nutrimetric.app.ui.screens.ManualEntryScreen
+import br.com.nutrimetric.app.ui.screens.OnboardingScreen
 import br.com.nutrimetric.app.ui.screens.PaywallScreen
 import br.com.nutrimetric.app.ui.screens.SettingsScreen
 import br.com.nutrimetric.app.ui.screens.HistoryScreen
@@ -73,7 +75,23 @@ class MainActivity : ComponentActivity() {
                 onNavigateToBarcode = { navController.navigate("barcode") },
                 onNavigateToSettings = { navController.navigate("settings") },
                 onNavigateToHistory = { navController.navigate("history") },
-                onNavigateToEditMeal = { mealId -> navController.navigate("edit_meal/$mealId") }
+                onNavigateToEditMeal = { mealId -> navController.navigate("edit_meal/$mealId") },
+                onNavigateToOnboarding = {
+                  navController.navigate("onboarding") {
+                    popUpTo("home") { inclusive = true }
+                  }
+                },
+                onNavigateToChat = { navController.navigate("chat") }
+              )
+            }
+            composable("onboarding") {
+              OnboardingScreen(
+                viewModel = viewModel,
+                onFinished = {
+                  navController.navigate("home") {
+                    popUpTo("onboarding") { inclusive = true }
+                  }
+                }
               )
             }
             composable("barcode") {
@@ -121,6 +139,13 @@ class MainActivity : ComponentActivity() {
                 onBack = { navController.popBackStack() },
                 onNavigateToPaywall = { reason ->
                   navController.navigate("paywall?reason=${reason ?: ""}")
+                },
+                onMealSaved = { mealId ->
+                  // Resultado consumido pelo ChatScreen quando a foto foi anexada
+                  // por lá; inofensivo quando a origem é a Home (ninguém escuta).
+                  navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set("justSavedMealId", mealId)
                 }
               )
             }
@@ -128,6 +153,16 @@ class MainActivity : ComponentActivity() {
               ManualEntryScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() }
+              )
+            }
+            composable("chat") {
+              ChatScreen(
+                mainViewModel = viewModel,
+                navController = navController,
+                onBack = { navController.popBackStack() },
+                onNavigateToCamera = { navController.navigate("camera") },
+                onNavigateToAnalysis = { navController.navigate("analysis") },
+                onNavigateToPaywall = { navController.navigate("paywall?reason=chat_locked") }
               )
             }
             composable(

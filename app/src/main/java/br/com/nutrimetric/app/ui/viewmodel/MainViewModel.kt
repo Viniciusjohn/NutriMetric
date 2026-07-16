@@ -94,6 +94,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val tfliteClassifier = br.com.nutrimetric.app.ml.TfliteFoodClassifier(application)
     private val goalsRepository = br.com.nutrimetric.app.repository.GoalsRepository(application)
+    private val profileRepository = br.com.nutrimetric.app.repository.ProfileRepository(application)
+
+    val onboardingCompleted: StateFlow<Boolean> = profileRepository.profileFlow
+        .map { it.onboardingCompleted }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true // evita flash da tela de onboarding antes do DataStore carregar
+        )
+
+    /** Salva o perfil do onboarding, o peso inicial e calcula as metas automaticamente. */
+    fun completeOnboarding(profile: br.com.nutrimetric.app.repository.UserProfile, weightKg: Double) {
+        viewModelScope.launch {
+            weightDao.insert(
+                br.com.nutrimetric.app.data.local.WeightEntity(
+                    date = java.time.LocalDate.now().toString(),
+                    weightKg = weightKg
+                )
+            )
+            profileRepository.saveProfile(profile.copy(onboardingCompleted = true))
+            val goals = br.com.nutrimetric.app.utils.NutritionCalculator.calculateGoals(
+                weightKg = weightKg,
+                heightCm = profile.heightCm.toDouble(),
+                age = profile.age,
+                sex = if (profile.sex == "M") {
+                    br.com.nutrimetric.app.utils.NutritionCalculator.Sex.MALE
+                } else {
+                    br.com.nutrimetric.app.utils.NutritionCalculator.Sex.FEMALE
+                },
+                activityLevel = mapActivityLevel(profile.activityLevel),
+                goal = mapGoal(profile.goal)
+            )
+            goalsRepository.saveGoals(goals)
+        }
+    }
+
+    private fun mapActivityLevel(value: String): br.com.nutrimetric.app.utils.NutritionCalculator.ActivityLevel {
+        return when (value) {
+            "sedentary" -> br.com.nutrimetric.app.utils.NutritionCalculator.ActivityLevel.SEDENTARY
+            "light" -> br.com.nutrimetric.app.utils.NutritionCalculator.ActivityLevel.LIGHT
+            "active" -> br.com.nutrimetric.app.utils.NutritionCalculator.ActivityLevel.ACTIVE
+            "very_active" -> br.com.nutrimetric.app.utils.NutritionCalculator.ActivityLevel.VERY_ACTIVE
+            else -> br.com.nutrimetric.app.utils.NutritionCalculator.ActivityLevel.MODERATE
+        }
+    }
+
+    private fun mapGoal(value: String): br.com.nutrimetric.app.utils.NutritionCalculator.Goal {
+        return when (value) {
+            "lose" -> br.com.nutrimetric.app.utils.NutritionCalculator.Goal.LOSE
+            "gain" -> br.com.nutrimetric.app.utils.NutritionCalculator.Goal.GAIN
+            else -> br.com.nutrimetric.app.utils.NutritionCalculator.Goal.MAINTAIN
+        }
+    }
 
     private val subscriptionRepository = br.com.nutrimetric.app.repository.SubscriptionRepository(application)
 

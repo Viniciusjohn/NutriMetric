@@ -42,6 +42,7 @@ fun PaywallScreen(
 
     val headline = when (reason) {
         "quota_exceeded" -> "Você atingiu o limite de fotos hoje"
+        "chat_locked" -> "Converse à vontade com a Nutri"
         else -> "Desbloqueie o NutriMetric Premium"
     }
 

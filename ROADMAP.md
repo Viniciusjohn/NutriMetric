@@ -108,24 +108,24 @@ Features de retenção 100% locais (não dependem de contas externas), feitas an
 
 ---
 
-## FASE 3 — Nutri IA: o produto de verdade (~2–3 semanas)
+## FASE 3 — Nutri IA: o produto de verdade (✅ implementada)
 
 **Meta: relacionamento diário. Onboarding conversacional → metas automáticas → chat com contexto.**
 
 ### 3.1 Perfil e onboarding conversacional
-- **Novo:** `UserProfileEntity` (Room: peso, altura, idade, sexo, objetivo, atividade, restrições) + espelho no Firestore
-- **Novo:** `ui/screens/OnboardingChatScreen.kt` — fluxo guiado em formato de conversa (perguntas fixas, não LLM — mais barato e confiável)
-- Cálculo de metas: Mifflin-St Jeor (TMB) × fator de atividade ± objetivo → grava via `GoalsRepository` existente (DataStore) + Firestore
-- Disclaimer LGPD + "não substitui nutricionista" com aceite explícito AQUI (dado de saúde = sensível)
+- `repository/ProfileRepository.kt` (DataStore, mesmo padrão do `GoalsRepository`): altura, idade, sexo, atividade, objetivo, flag `onboardingCompleted`. Peso vai para `WeightEntity`/`WeightDao` já existente (mesma tabela do card de peso)
+- `ui/screens/OnboardingScreen.kt`: perguntas fixas (não LLM) estilizadas como bolhas de conversa, terminando em resumo das metas + **checkbox de consentimento LGPD explícito**
+- `utils/NutritionCalculator.kt`: Mifflin-St Jeor (TMB) × fator de atividade ± objetivo (±500 kcal), proteína 2g/kg, gordura 25% das calorias — coberto por `NutritionCalculatorTest.kt`
+- Gate reativo (não detecção de "novo usuário"): `MainViewModel.onboardingCompleted` redireciona a `HomeScreen` para `"onboarding"` sempre que o perfil não estiver completo
 
 ### 3.2 Chat com a Nutri
-- **Novos:** `ui/screens/ChatScreen.kt`, `ui/viewmodel/ChatViewModel.kt`, `repository/ChatRepository.kt`, `ChatMessageEntity` (Room, histórico local)
-- Cloud Function `chat`: system prompt = persona NutriBR + perfil do usuário + consumo do dia (app envia totais do `DailyConsumptionEntity`) + últimas N mensagens
-- **Gating:** FREE recebe só o feedback automático pós-foto; pergunta livre → paywall
-- **Foto dentro do chat:** reusa `MainViewModel.analyzeImage()` + `TacoMatcher` + fluxo de salvar; após salvar, a function gera comentário ("Faltou proteína hoje...")
-- Resumo de fim de dia: mensagem gerada no primeiro open após 20h (ou noti da Fase 4)
+- `ui/screens/ChatScreen.kt`, `ui/viewmodel/ChatViewModel.kt`, `repository/ChatRepository.kt`, `ChatMessageEntity`/`ChatMessageDao` (Room, histórico 100% local — sem sync no Firestore)
+- Cloud Function `chat` (antes stub, agora real): persona "Nutri" + contexto (perfil/metas/consumo do dia) enviado no payload da requisição a cada chamada — sem leitura do Firestore nem persistência de histórico no servidor
+- **Gating por trigger:** só `user_message` (pergunta livre) exige Premium; `meal_logged`/`daily_summary` (comentários automáticos) não exigem — já limitados pela quota de fotos do FREE
+- **Foto dentro do chat:** reaproveita a navegação existente (câmera/galeria → `analysis` → `PlateReviewScreen`, sem duplicar o pipeline); o id da refeição salva volta ao chat via `savedStateHandle` do NavController, que dispara o comentário automático da Nutri
+- Resumo de fim de dia (`trigger: "daily_summary"`): function já suporta, gatilho automático fica para uma rodada futura (ligado à Fase 4 de notificações)
 
-**✅ Milestone F3:** onboarding calcula metas sozinho; foto mandada no chat é analisada, salva e comentada pela Nutri.
+**✅ Milestone F3:** onboarding calcula metas sozinho; foto mandada no chat é analisada, salva e comentada pela Nutri; pergunta livre funciona no Premium e leva ao paywall no FREE.
 
 ---
 

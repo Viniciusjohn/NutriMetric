@@ -42,7 +42,7 @@ fun PlateReviewScreen(
     imageUri: String,
     initialItems: List<MappedFoodItem>,
     onBack: () -> Unit,
-    onConfirmSuccess: () -> Unit,
+    onConfirmSuccess: (savedMealId: Long?) -> Unit,
     modifier: Modifier = Modifier,
     editingMealId: Long? = null,
     viewModel: PlateViewModel = viewModel()
@@ -63,7 +63,7 @@ fun PlateReviewScreen(
     // React to successful save
     LaunchedEffect(state.isSaved) {
         if (state.isSaved) {
-            onConfirmSuccess()
+            onConfirmSuccess(state.savedMealId)
         }
     }
 

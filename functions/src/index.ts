@@ -2,7 +2,7 @@ import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
-import { ANALYZE_PROMPT } from "./prompt";
+import { ANALYZE_PROMPT, CHAT_PERSONA_PROMPT } from "./prompt";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -153,23 +153,171 @@ export const analyzePhoto = onCall(
   }
 );
 
+type ChatTrigger = "user_message" | "meal_logged" | "daily_summary";
+const CHAT_TRIGGERS: ChatTrigger[] = ["user_message", "meal_logged", "daily_summary"];
+const MAX_CHAT_MESSAGE_LENGTH = 2000;
+const MAX_HISTORY_MESSAGES = 10;
+
+interface ChatHistoryTurn {
+  role: "user" | "model";
+  content: string;
+}
+
+interface ChatContext {
+  profile?: { heightCm?: number; age?: number; sex?: string; activityLevel?: string; goal?: string };
+  goals?: { calories?: number; protein?: number; carbs?: number; fat?: number };
+  dailyTotals?: { kcal?: number; protein?: number; carbs?: number; fat?: number };
+  loggedMeal?: { items?: { name: string; grams?: number; kcal?: number; protein?: number; carbs?: number; fat?: number }[] };
+}
+
+/** Monta o bloco de contexto (perfil/metas/consumo do dia) injetado no system instruction. */
+function buildContextText(context: ChatContext): string {
+  const lines: string[] = [];
+
+  const p = context.profile;
+  if (p) {
+    lines.push(
+      `Perfil do usuário: ${p.age ?? "?"} anos, ${p.heightCm ?? "?"}cm, sexo ${p.sex ?? "?"}, ` +
+        `nível de atividade "${p.activityLevel ?? "?"}", objetivo "${p.goal ?? "?"}".`
+    );
+  }
+
+  const g = context.goals;
+  if (g) {
+    lines.push(
+      `Metas diárias: ${g.calories ?? "?"} kcal, proteína ${g.protein ?? "?"}g, ` +
+        `carboidratos ${g.carbs ?? "?"}g, gordura ${g.fat ?? "?"}g.`
+    );
+  }
+
+  const d = context.dailyTotals;
+  if (d) {
+    lines.push(
+      `Consumido hoje até agora: ${d.kcal ?? 0} kcal, proteína ${d.protein ?? 0}g, ` +
+        `carboidratos ${d.carbs ?? 0}g, gordura ${d.fat ?? 0}g.`
+    );
+  }
+
+  const meal = context.loggedMeal?.items;
+  if (meal && meal.length > 0) {
+    const itemsText = meal
+      .map((i) => `${i.name} (${i.grams ?? "?"}g, ${i.kcal ?? "?"}kcal)`)
+      .join(", ");
+    lines.push(`Refeição que o usuário acabou de registrar: ${itemsText}.`);
+  }
+
+  return lines.length > 0 ? lines.join("\n") : "Sem contexto adicional disponível.";
+}
+
+/** Turno sintético (não digitado pelo usuário) para gatilhos automáticos. */
+function syntheticUserTurn(trigger: ChatTrigger): string {
+  switch (trigger) {
+    case "meal_logged":
+      return "Acabei de registrar uma refeição. Comente brevemente considerando minhas metas e o que já comi hoje.";
+    case "daily_summary":
+      return "Gere um resumo breve e encorajador do meu dia com base no meu consumo total e minhas metas.";
+    default:
+      return "";
+  }
+}
+
+async function callGeminiChat(
+  systemInstruction: string,
+  contents: { role: "user" | "model"; parts: { text: string }[] }[],
+  apiKey: string
+): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+  const body = {
+    contents,
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    generationConfig: { temperature: 0.6 },
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error(`Gemini (chat) retornou ${response.status}: ${errorText}`);
+    throw new HttpsError("internal", "A Nutri está indisponível agora. Tente novamente.");
+  }
+
+  const data = (await response.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  if (!text) {
+    logger.error("Gemini (chat) retornou resposta vazia");
+    throw new HttpsError("internal", "A Nutri não conseguiu responder agora. Tente de novo.");
+  }
+  return text;
+}
+
 /**
- * Chat com a Nutri IA — stub da Fase 3. Já valida auth e entitlement para o
- * app poder integrar o gating de paywall desde já.
+ * Chat com a Nutri IA. Três gatilhos:
+ * - "user_message": pergunta livre digitada pelo usuário — exige Premium.
+ * - "meal_logged": comentário automático pós-refeição — não exige Premium
+ *   (já é naturalmente limitado pela quota de fotos do FREE).
+ * - "daily_summary": resumo do dia — mesma regra de "meal_logged".
+ *
+ * Sem persistência de histórico no servidor: o app manda as últimas
+ * mensagens no payload a cada chamada (Room local é a fonte da verdade).
  */
 export const chat = onCall({ region: REGION, secrets: [geminiApiKey] }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para conversar com a Nutri.");
   }
-  const premium = await isPremiumUser(uid);
-  if (!premium) {
-    throw new HttpsError(
-      "permission-denied",
-      "O chat com a Nutri é exclusivo do Premium. Assine para conversar à vontade."
-    );
+
+  const trigger = request.data?.trigger as unknown;
+  if (typeof trigger !== "string" || !CHAT_TRIGGERS.includes(trigger as ChatTrigger)) {
+    throw new HttpsError("invalid-argument", "trigger inválido.");
   }
-  throw new HttpsError("unimplemented", "A Nutri IA chega na Fase 3. Aguarde!");
+
+  if (trigger === "user_message") {
+    const premium = await isPremiumUser(uid);
+    if (!premium) {
+      throw new HttpsError(
+        "permission-denied",
+        "O chat com a Nutri é exclusivo do Premium. Assine para conversar à vontade."
+      );
+    }
+  }
+
+  const context: ChatContext = (request.data?.context as ChatContext) ?? {};
+  const contextText = buildContextText(context);
+  const systemInstruction = `${CHAT_PERSONA_PROMPT}\n\nContexto atual do usuário:\n${contextText}`;
+
+  const contents: { role: "user" | "model"; parts: { text: string }[] }[] = [];
+
+  if (trigger === "user_message") {
+    const message = request.data?.message as unknown;
+    if (typeof message !== "string" || message.trim().length === 0) {
+      throw new HttpsError("invalid-argument", "message é obrigatório para user_message.");
+    }
+    if (message.length > MAX_CHAT_MESSAGE_LENGTH) {
+      throw new HttpsError("invalid-argument", "Mensagem muito longa.");
+    }
+
+    const rawHistory = Array.isArray(request.data?.history) ? (request.data.history as ChatHistoryTurn[]) : [];
+    const history = rawHistory.slice(-MAX_HISTORY_MESSAGES).filter(
+      (h): h is ChatHistoryTurn =>
+        (h?.role === "user" || h?.role === "model") && typeof h?.content === "string"
+    );
+
+    for (const turn of history) {
+      contents.push({ role: turn.role, parts: [{ text: turn.content }] });
+    }
+    contents.push({ role: "user", parts: [{ text: message }] });
+  } else {
+    contents.push({ role: "user", parts: [{ text: syntheticUserTurn(trigger as ChatTrigger) }] });
+  }
+
+  const reply = await callGeminiChat(systemInstruction, contents, geminiApiKey.value());
+  return { reply };
 });
 
 /**

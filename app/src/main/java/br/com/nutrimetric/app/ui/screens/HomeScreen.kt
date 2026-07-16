@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,9 +62,19 @@ fun HomeScreen(
     onNavigateToBarcode: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToHistory: () -> Unit,
-    onNavigateToEditMeal: (Long) -> Unit
+    onNavigateToEditMeal: (Long) -> Unit,
+    onNavigateToOnboarding: () -> Unit,
+    onNavigateToChat: () -> Unit
 ) {
     val context = LocalContext.current
+    val onboardingCompleted by viewModel.onboardingCompleted.collectAsState()
+
+    LaunchedEffect(onboardingCompleted) {
+        if (!onboardingCompleted) {
+            onNavigateToOnboarding()
+        }
+    }
+
     val todayMeals by viewModel.todayMealsUiState.collectAsState()
     val todayTotals by viewModel.todayTotals.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
@@ -235,6 +246,15 @@ fun HomeScreen(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
+                    }
+                    IconButton(
+                        onClick = onNavigateToChat,
+                        modifier = Modifier.testTag("chat_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Chat,
+                            contentDescription = "Conversar com a Nutri"
+                        )
                     }
                     IconButton(
                         onClick = onNavigateToHistory,

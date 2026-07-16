@@ -18,6 +18,6 @@ fun EditMealScreen(
         initialItems = emptyList(),
         editingMealId = mealId,
         onBack = onBack,
-        onConfirmSuccess = onBack
+        onConfirmSuccess = { onBack() }
     )
 }
