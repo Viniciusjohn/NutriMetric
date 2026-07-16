@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -64,7 +65,8 @@ fun HomeScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToEditMeal: (Long) -> Unit,
     onNavigateToOnboarding: () -> Unit,
-    onNavigateToChat: () -> Unit
+    onNavigateToChat: () -> Unit,
+    onNavigateToWeeklyReport: () -> Unit
 ) {
     val context = LocalContext.current
     val onboardingCompleted by viewModel.onboardingCompleted.collectAsState()
@@ -254,6 +256,15 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Chat,
                             contentDescription = "Conversar com a Nutri"
+                        )
+                    }
+                    IconButton(
+                        onClick = onNavigateToWeeklyReport,
+                        modifier = Modifier.testTag("weekly_report_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Assessment,
+                            contentDescription = "Relatório Semanal"
                         )
                     }
                     IconButton(

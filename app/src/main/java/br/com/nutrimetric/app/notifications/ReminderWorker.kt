@@ -30,7 +30,8 @@ class ReminderWorker(
 
     companion object {
         const val CHANNEL_ID = "nutrimetric_reminders"
-        private const val NOTIFICATION_ID = 1001
+        private const val NOTIFICATION_ID_REMINDER = 1001
+        private const val NOTIFICATION_ID_PUSH = 1002
 
         private fun ensureChannel(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -47,6 +48,20 @@ class ReminderWorker(
         }
 
         fun showReminderNotification(context: Context) {
+            showNotification(
+                context = context,
+                notificationId = NOTIFICATION_ID_REMINDER,
+                title = "Hora de registrar sua refeição 🍽️",
+                body = "Já anotou o que você comeu hoje? Mantenha sua sequência!"
+            )
+        }
+
+        /** Exibe uma notificação de re-engajamento recebida via FCM (mesmo canal do lembrete local). */
+        fun showPushNotification(context: Context, title: String, body: String) {
+            showNotification(context = context, notificationId = NOTIFICATION_ID_PUSH, title = title, body = body)
+        }
+
+        private fun showNotification(context: Context, notificationId: Int, title: String, body: String) {
             ensureChannel(context)
 
             // Em Android 13+ a notificação só aparece com POST_NOTIFICATIONS concedida.
@@ -67,14 +82,14 @@ class ReminderWorker(
 
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("Hora de registrar sua refeição 🍽️")
-                .setContentText("Já anotou o que você comeu hoje? Mantenha sua sequência!")
+                .setContentTitle(title)
+                .setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
                 .build()
 
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+            NotificationManagerCompat.from(context).notify(notificationId, notification)
         }
     }
 }

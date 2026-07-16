@@ -28,6 +28,7 @@ import br.com.nutrimetric.app.ui.screens.OnboardingScreen
 import br.com.nutrimetric.app.ui.screens.PaywallScreen
 import br.com.nutrimetric.app.ui.screens.SettingsScreen
 import br.com.nutrimetric.app.ui.screens.HistoryScreen
+import br.com.nutrimetric.app.ui.screens.WeeklyReportScreen
 import br.com.nutrimetric.app.ui.theme.MyApplicationTheme
 import br.com.nutrimetric.app.ui.viewmodel.MainViewModel
 
@@ -81,7 +82,14 @@ class MainActivity : ComponentActivity() {
                     popUpTo("home") { inclusive = true }
                   }
                 },
-                onNavigateToChat = { navController.navigate("chat") }
+                onNavigateToChat = { navController.navigate("chat") },
+                onNavigateToWeeklyReport = { navController.navigate("weekly_report") }
+              )
+            }
+            composable("weekly_report") {
+              WeeklyReportScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToPaywall = { navController.navigate("paywall?reason=weekly_report_locked") }
               )
             }
             composable("onboarding") {

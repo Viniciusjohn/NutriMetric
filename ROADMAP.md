@@ -129,15 +129,15 @@ Features de retenção 100% locais (não dependem de contas externas), feitas an
 
 ---
 
-## FASE 4 — Retenção (~1–2 semanas)
+## FASE 4 — Retenção (✅ implementada)
 
-- **Lembretes de refeição:** WorkManager + notificações locais (horários configuráveis em `SettingsScreen`)
-- **Streak 🔥:** calculado sobre datas do `DailyConsumptionEntity`; badge no `HomeScreen`
-- **Push re-engajamento:** FCM (usuário sumiu 2+ dias → "A Nutri sentiu sua falta")
-- **Relatório semanal:** nova aba/tela reusando Vico Charts + agregações do `HistoryScreen`; versão premium com análise escrita pela IA
+- **Lembretes de refeição:** WorkManager + notificações locais (horários configuráveis em `SettingsScreen`) — feito na Fase 1.5
+- **Streak 🔥:** calculado sobre datas do `DailyConsumptionEntity`; badge no `HomeScreen` — feito na Fase 1.5
+- **Push re-engajamento:** `NutriFirebaseMessagingService` + `PushRepository` registram o token FCM (`registerFcmToken`); Cloud Function agendada `sendReengagementPush` (`onSchedule`, diária às 10h BRT) notifica quem ficou 2+ dias sem abrir o app (`lastActivityAt`, tocado em `analyzePhoto`/`chat`), com cooldown de 7 dias por usuário para não spammar quem já sumiu há meses
+- **Relatório semanal:** `WeeklyReportScreen` (gráfico de calorias via Vico Charts + médias de macros vs. metas, últimos 7 dias) acessível pelo ícone no `HomeScreen`; análise escrita pela Nutri IA é exclusiva Premium (novo gatilho `weekly_summary` na function `chat`, gated no servidor igual ao `user_message`) — FREE vê estatísticas normalmente e recebe upsell pro paywall (`reason=weekly_report_locked`)
 - Permission `POST_NOTIFICATIONS` (Android 13+) via Accompanist já presente
 
-**✅ Milestone F4:** lembretes disparando, streak visível, relatório semanal renderizando.
+**✅ Milestone F4:** lembretes disparando, streak visível, relatório semanal renderizando, push de re-engajamento agendada.
 
 ---
 

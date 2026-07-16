@@ -1,8 +1,9 @@
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
-import { ANALYZE_PROMPT, CHAT_PERSONA_PROMPT } from "./prompt";
+import { ANALYZE_PROMPT, CHAT_PERSONA_PROMPT, WEEKLY_SUMMARY_INSTRUCTION } from "./prompt";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -26,6 +27,18 @@ function todayInSaoPaulo(): string {
 async function isPremiumUser(uid: string): Promise<boolean> {
   const snap = await db.doc(`users/${uid}`).get();
   return snap.get("isPremium") === true;
+}
+
+/** Marca a última atividade do usuário — usado pela push de re-engajamento para saber quem sumiu. */
+async function touchLastActivity(uid: string): Promise<void> {
+  try {
+    await db.doc(`users/${uid}`).set(
+      { lastActivityAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+  } catch (e) {
+    logger.warn(`Falha ao atualizar lastActivityAt de ${uid}`, e);
+  }
 }
 
 /**
@@ -143,6 +156,7 @@ export const analyzePhoto = onCall(
 
     const premium = await isPremiumUser(uid);
     await reservePhotoQuota(uid, premium);
+    await touchLastActivity(uid);
 
     try {
       return await callGemini(imageBase64, geminiApiKey.value());
@@ -153,8 +167,11 @@ export const analyzePhoto = onCall(
   }
 );
 
-type ChatTrigger = "user_message" | "meal_logged" | "daily_summary";
-const CHAT_TRIGGERS: ChatTrigger[] = ["user_message", "meal_logged", "daily_summary"];
+type ChatTrigger = "user_message" | "meal_logged" | "daily_summary" | "weekly_summary";
+const CHAT_TRIGGERS: ChatTrigger[] = ["user_message", "meal_logged", "daily_summary", "weekly_summary"];
+// Gatilhos que exigem Premium: pergunta livre e o relatório semanal (os demais
+// já são limitados naturalmente pela quota diária de fotos do FREE).
+const PREMIUM_ONLY_TRIGGERS: ChatTrigger[] = ["user_message", "weekly_summary"];
 const MAX_CHAT_MESSAGE_LENGTH = 2000;
 const MAX_HISTORY_MESSAGES = 10;
 
@@ -163,11 +180,20 @@ interface ChatHistoryTurn {
   content: string;
 }
 
+interface WeeklyDayTotal {
+  date?: string;
+  kcal?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+}
+
 interface ChatContext {
   profile?: { heightCm?: number; age?: number; sex?: string; activityLevel?: string; goal?: string };
   goals?: { calories?: number; protein?: number; carbs?: number; fat?: number };
   dailyTotals?: { kcal?: number; protein?: number; carbs?: number; fat?: number };
   loggedMeal?: { items?: { name: string; grams?: number; kcal?: number; protein?: number; carbs?: number; fat?: number }[] };
+  weeklyTotals?: WeeklyDayTotal[];
 }
 
 /** Monta o bloco de contexto (perfil/metas/consumo do dia) injetado no system instruction. */
@@ -206,6 +232,14 @@ function buildContextText(context: ChatContext): string {
     lines.push(`Refeição que o usuário acabou de registrar: ${itemsText}.`);
   }
 
+  const weekly = context.weeklyTotals;
+  if (weekly && weekly.length > 0) {
+    const daysText = weekly
+      .map((d) => `${d.date ?? "?"}: ${d.kcal ?? 0}kcal, prot ${d.protein ?? 0}g, carb ${d.carbs ?? 0}g, gord ${d.fat ?? 0}g`)
+      .join("; ");
+    lines.push(`Totais dos últimos dias (mais antigo → mais recente): ${daysText}.`);
+  }
+
   return lines.length > 0 ? lines.join("\n") : "Sem contexto adicional disponível.";
 }
 
@@ -216,6 +250,8 @@ function syntheticUserTurn(trigger: ChatTrigger): string {
       return "Acabei de registrar uma refeição. Comente brevemente considerando minhas metas e o que já comi hoje.";
     case "daily_summary":
       return "Gere um resumo breve e encorajador do meu dia com base no meu consumo total e minhas metas.";
+    case "weekly_summary":
+      return "Gere uma análise da minha semana com base nos totais diários e minhas metas.";
     default:
       return "";
   }
@@ -277,19 +313,24 @@ export const chat = onCall({ region: REGION, secrets: [geminiApiKey] }, async (r
     throw new HttpsError("invalid-argument", "trigger inválido.");
   }
 
-  if (trigger === "user_message") {
+  if (PREMIUM_ONLY_TRIGGERS.includes(trigger as ChatTrigger)) {
     const premium = await isPremiumUser(uid);
     if (!premium) {
       throw new HttpsError(
         "permission-denied",
-        "O chat com a Nutri é exclusivo do Premium. Assine para conversar à vontade."
+        trigger === "weekly_summary"
+          ? "O relatório semanal com análise da Nutri é exclusivo do Premium."
+          : "O chat com a Nutri é exclusivo do Premium. Assine para conversar à vontade."
       );
     }
   }
 
+  await touchLastActivity(uid);
+
   const context: ChatContext = (request.data?.context as ChatContext) ?? {};
   const contextText = buildContextText(context);
-  const systemInstruction = `${CHAT_PERSONA_PROMPT}\n\nContexto atual do usuário:\n${contextText}`;
+  const extraInstruction = trigger === "weekly_summary" ? `\n\n${WEEKLY_SUMMARY_INSTRUCTION}` : "";
+  const systemInstruction = `${CHAT_PERSONA_PROMPT}${extraInstruction}\n\nContexto atual do usuário:\n${contextText}`;
 
   const contents: { role: "user" | "model"; parts: { text: string }[] }[] = [];
 
@@ -395,3 +436,82 @@ export const deleteAccount = onCall({ region: REGION }, async (request) => {
   logger.info(`Conta excluída: ${uid}`);
   return { success: true };
 });
+
+/**
+ * Registra (ou atualiza) o token FCM do dispositivo do usuário logado.
+ * Chamado pelo app sempre que o token muda (login, reinstalação, refresh).
+ */
+export const registerFcmToken = onCall({ region: REGION }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para ativar notificações.");
+  }
+
+  const token: unknown = request.data?.token;
+  if (typeof token !== "string" || token.length === 0) {
+    throw new HttpsError("invalid-argument", "token é obrigatório.");
+  }
+
+  await db.doc(`users/${uid}`).set(
+    { fcmToken: token, fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp() },
+    { merge: true }
+  );
+
+  return { success: true };
+});
+
+const REENGAGEMENT_INACTIVE_DAYS = 2;
+const REENGAGEMENT_COOLDOWN_DAYS = 7;
+const REENGAGEMENT_BATCH_LIMIT = 500;
+
+/**
+ * Push diária de re-engajamento: usuários com token FCM salvo e sem atividade
+ * (foto analisada ou mensagem no chat) há 2+ dias recebem um lembrete, no
+ * máximo uma vez a cada 7 dias por usuário (evita spam de quem já sumiu há meses).
+ */
+export const sendReengagementPush = onSchedule(
+  { region: REGION, schedule: "every day 10:00", timeZone: "America/Sao_Paulo" },
+  async () => {
+    const cutoff = admin.firestore.Timestamp.fromMillis(
+      Date.now() - REENGAGEMENT_INACTIVE_DAYS * 24 * 60 * 60 * 1000
+    );
+    const cooldownCutoff = admin.firestore.Timestamp.fromMillis(
+      Date.now() - REENGAGEMENT_COOLDOWN_DAYS * 24 * 60 * 60 * 1000
+    );
+
+    const snap = await db
+      .collection("users")
+      .where("lastActivityAt", "<=", cutoff)
+      .limit(REENGAGEMENT_BATCH_LIMIT)
+      .get();
+
+    let sent = 0;
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const token: string | undefined = data.fcmToken;
+      if (!token) continue;
+
+      const lastPush = data.lastReengagementPushAt as admin.firestore.Timestamp | undefined;
+      if (lastPush && lastPush.toMillis() > cooldownCutoff.toMillis()) continue;
+
+      try {
+        await admin.messaging().send({
+          token,
+          notification: {
+            title: "A Nutri sentiu sua falta 🥗",
+            body: "Que tal registrar sua próxima refeição? Leva só alguns segundos.",
+          },
+        });
+        await doc.ref.set(
+          { lastReengagementPushAt: admin.firestore.FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+        sent++;
+      } catch (e) {
+        logger.warn(`Falha ao enviar push de re-engajamento para ${doc.id}`, e);
+      }
+    }
+
+    logger.info(`Push de re-engajamento: ${sent}/${snap.size} usuários notificados`);
+  }
+);

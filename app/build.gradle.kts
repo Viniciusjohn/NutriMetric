@@ -129,6 +129,7 @@ dependencies {
   implementation(libs.firebase.functions)
   implementation(libs.firebase.analytics)
   implementation(libs.firebase.crashlytics)
+  implementation(libs.firebase.messaging)
   implementation(libs.revenuecat.purchases)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)

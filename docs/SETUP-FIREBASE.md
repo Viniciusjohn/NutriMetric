@@ -58,6 +58,11 @@ cd functions && npm install && cd ..
 firebase deploy --only functions,firestore:rules
 ```
 
+> A function `sendReengagementPush` (Fase 4, push de re-engajamento) é
+> agendada (`onSchedule`) — o deploy cria automaticamente o job no Cloud
+> Scheduler. Nenhum passo manual extra, mas o Cloud Scheduler também exige o
+> plano Blaze (já habilitado acima).
+
 ## 5. Habilitar GitHub Pages (política de privacidade + termos)
 
 O app já tem `docs/privacy-policy.html` e `docs/terms.html` prontos, e a tela

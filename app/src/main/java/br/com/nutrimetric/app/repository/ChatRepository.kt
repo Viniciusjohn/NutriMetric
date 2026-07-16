@@ -38,6 +38,9 @@ class ChatRepository(private val chatMessageDao: ChatMessageDao) {
     suspend fun requestDailySummary(context: Map<String, Any?>): Result<String> =
         callChat(trigger = "daily_summary", message = null, context = context)
 
+    suspend fun requestWeeklySummary(context: Map<String, Any?>): Result<String> =
+        callChat(trigger = "weekly_summary", message = null, context = context)
+
     private suspend fun callChat(
         trigger: String,
         message: String?,

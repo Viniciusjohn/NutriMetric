@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 import br.com.nutrimetric.app.data.local.TacoEntity
 import br.com.nutrimetric.app.utils.TacoMatcher
@@ -149,6 +150,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private val subscriptionRepository = br.com.nutrimetric.app.repository.SubscriptionRepository(application)
+    private val pushRepository = br.com.nutrimetric.app.repository.PushRepository()
+
+    init {
+        // Garante que o backend tenha o token FCM mais recente do usuário logado
+        // (novos tokens já são cobertos por onNewToken no NutriFirebaseMessagingService).
+        viewModelScope.launch {
+            if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) return@launch
+            try {
+                val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                pushRepository.registerToken(token)
+            } catch (e: Exception) {
+                android.util.Log.w("MainViewModel", "Falha ao obter token FCM", e)
+            }
+        }
+    }
 
     val isPremium: StateFlow<Boolean> = subscriptionRepository.isPremium
         .stateIn(
