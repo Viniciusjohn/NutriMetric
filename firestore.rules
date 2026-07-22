@@ -3,16 +3,24 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{uid} {
+      // Campos que o CLIENTE pode gravar diretamente (via ensureUserDocument no
+      // AuthRepository). Tudo o mais — isPremium, quota, fcmToken, lastActivityAt,
+      // etc. — é escrito só pelas Cloud Functions/webhook via Admin SDK (que
+      // ignora estas regras). Whitelist em vez de blacklist: impede o cliente de
+      // se auto-promover a premium E de poluir o doc com campos arbitrários
+      // (abuso de custo/armazenamento).
+      function clientWritableKeys() {
+        return ['displayName', 'email', 'updatedAt'];
+      }
+
       // O usuário só enxerga o próprio documento.
       allow read: if request.auth != null && request.auth.uid == uid;
 
-      // O cliente NUNCA pode se auto-promover a premium — isPremium é escrito
-      // apenas pelo webhook do RevenueCat (Admin SDK ignora estas regras).
       allow create: if request.auth != null && request.auth.uid == uid
-        && !request.resource.data.keys().hasAny(['isPremium', 'subscriptionUpdatedAt', 'lastSubscriptionEvent']);
+        && request.resource.data.keys().hasOnly(clientWritableKeys());
       allow update: if request.auth != null && request.auth.uid == uid
-        && !request.resource.data.diff(resource.data).affectedKeys()
-             .hasAny(['isPremium', 'subscriptionUpdatedAt', 'lastSubscriptionEvent']);
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(clientWritableKeys());
       allow delete: if false;
 
       // Quota diária: leitura permitida (para exibir "fotos restantes" na UI),

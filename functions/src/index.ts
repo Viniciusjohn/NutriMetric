@@ -4,6 +4,21 @@ import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import { ANALYZE_PROMPT, CHAT_PERSONA_PROMPT, WEEKLY_SUMMARY_INSTRUCTION } from "./prompt";
+import {
+  ChatContext,
+  ChatTrigger,
+  FREE_DAILY_AUTO_CHAT,
+  MAX_CHAT_MESSAGE_LENGTH,
+  buildContextText,
+  isAutoTrigger,
+  isValidTrigger,
+  photoLimitFor,
+  requiresPremium,
+  sanitizeContext,
+  sanitizeHistory,
+  syntheticUserTurn,
+  todayInSaoPaulo,
+} from "./logic";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -13,16 +28,8 @@ const revenuecatWebhookToken = defineSecret("REVENUECAT_WEBHOOK_TOKEN");
 
 const REGION = "southamerica-east1"; // São Paulo — menor latência para usuários BR
 const GEMINI_MODEL = "gemini-2.5-flash";
-const FREE_DAILY_PHOTOS = 1;
-const PREMIUM_DAILY_PHOTOS = 15;
 // ~6MB de base64 ≈ foto JPEG de 4.5MB. O app envia JPEG a 80% de qualidade.
 const MAX_IMAGE_BASE64_LENGTH = 6_000_000;
-
-/** Data de "hoje" no fuso do usuário brasileiro (quota reseta à meia-noite BRT). */
-function todayInSaoPaulo(): string {
-  // en-CA produz o formato YYYY-MM-DD, igual ao usado nas entidades do app
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-}
 
 async function isPremiumUser(uid: string): Promise<boolean> {
   const snap = await db.doc(`users/${uid}`).get();
@@ -46,7 +53,7 @@ async function touchLastActivity(uid: string): Promise<void> {
  * não reseta, e duas chamadas simultâneas não furam o limite).
  */
 async function reservePhotoQuota(uid: string, premium: boolean): Promise<void> {
-  const limit = premium ? PREMIUM_DAILY_PHOTOS : FREE_DAILY_PHOTOS;
+  const limit = photoLimitFor(premium);
   const usageRef = db.doc(`users/${uid}/usage/${todayInSaoPaulo()}`);
 
   await db.runTransaction(async (tx) => {
@@ -56,7 +63,7 @@ async function reservePhotoQuota(uid: string, premium: boolean): Promise<void> {
       throw new HttpsError(
         "resource-exhausted",
         premium
-          ? `Você atingiu o limite de ${PREMIUM_DAILY_PHOTOS} fotos hoje. Amanhã tem mais!`
+          ? `Você atingiu o limite de ${limit} fotos hoje. Amanhã tem mais!`
           : "Você já usou sua foto grátis de hoje. Assine o Premium para analisar até 15 fotos por dia.",
         { isPremium: premium, limit }
       );
@@ -64,6 +71,32 @@ async function reservePhotoQuota(uid: string, premium: boolean): Promise<void> {
     tx.set(
       usageRef,
       { photoCount: count + 1, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+  });
+}
+
+/**
+ * Reserva 1 mensagem automática da Nutri (meal_logged/daily_summary) contra o
+ * teto diário do FREE. Anti-abuso: sem isso, um cliente FREE poderia chamar a
+ * function `chat` com esses triggers em loop e gerar chamadas Gemini
+ * ilimitadas de graça. Transacional, mesmo doc de quota da foto.
+ */
+async function reserveAutoChatQuota(uid: string): Promise<void> {
+  const usageRef = db.doc(`users/${uid}/usage/${todayInSaoPaulo()}`);
+
+  await db.runTransaction(async (tx) => {
+    const usage = await tx.get(usageRef);
+    const count: number = usage.get("autoChatCount") ?? 0;
+    if (count >= FREE_DAILY_AUTO_CHAT) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Você atingiu o limite de mensagens automáticas da Nutri hoje. Assine o Premium para conversar à vontade."
+      );
+    }
+    tx.set(
+      usageRef,
+      { autoChatCount: count + 1, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
       { merge: true }
     );
   });
@@ -167,95 +200,6 @@ export const analyzePhoto = onCall(
   }
 );
 
-type ChatTrigger = "user_message" | "meal_logged" | "daily_summary" | "weekly_summary";
-const CHAT_TRIGGERS: ChatTrigger[] = ["user_message", "meal_logged", "daily_summary", "weekly_summary"];
-// Gatilhos que exigem Premium: pergunta livre e o relatório semanal (os demais
-// já são limitados naturalmente pela quota diária de fotos do FREE).
-const PREMIUM_ONLY_TRIGGERS: ChatTrigger[] = ["user_message", "weekly_summary"];
-const MAX_CHAT_MESSAGE_LENGTH = 2000;
-const MAX_HISTORY_MESSAGES = 10;
-
-interface ChatHistoryTurn {
-  role: "user" | "model";
-  content: string;
-}
-
-interface WeeklyDayTotal {
-  date?: string;
-  kcal?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-}
-
-interface ChatContext {
-  profile?: { heightCm?: number; age?: number; sex?: string; activityLevel?: string; goal?: string };
-  goals?: { calories?: number; protein?: number; carbs?: number; fat?: number };
-  dailyTotals?: { kcal?: number; protein?: number; carbs?: number; fat?: number };
-  loggedMeal?: { items?: { name: string; grams?: number; kcal?: number; protein?: number; carbs?: number; fat?: number }[] };
-  weeklyTotals?: WeeklyDayTotal[];
-}
-
-/** Monta o bloco de contexto (perfil/metas/consumo do dia) injetado no system instruction. */
-function buildContextText(context: ChatContext): string {
-  const lines: string[] = [];
-
-  const p = context.profile;
-  if (p) {
-    lines.push(
-      `Perfil do usuário: ${p.age ?? "?"} anos, ${p.heightCm ?? "?"}cm, sexo ${p.sex ?? "?"}, ` +
-        `nível de atividade "${p.activityLevel ?? "?"}", objetivo "${p.goal ?? "?"}".`
-    );
-  }
-
-  const g = context.goals;
-  if (g) {
-    lines.push(
-      `Metas diárias: ${g.calories ?? "?"} kcal, proteína ${g.protein ?? "?"}g, ` +
-        `carboidratos ${g.carbs ?? "?"}g, gordura ${g.fat ?? "?"}g.`
-    );
-  }
-
-  const d = context.dailyTotals;
-  if (d) {
-    lines.push(
-      `Consumido hoje até agora: ${d.kcal ?? 0} kcal, proteína ${d.protein ?? 0}g, ` +
-        `carboidratos ${d.carbs ?? 0}g, gordura ${d.fat ?? 0}g.`
-    );
-  }
-
-  const meal = context.loggedMeal?.items;
-  if (meal && meal.length > 0) {
-    const itemsText = meal
-      .map((i) => `${i.name} (${i.grams ?? "?"}g, ${i.kcal ?? "?"}kcal)`)
-      .join(", ");
-    lines.push(`Refeição que o usuário acabou de registrar: ${itemsText}.`);
-  }
-
-  const weekly = context.weeklyTotals;
-  if (weekly && weekly.length > 0) {
-    const daysText = weekly
-      .map((d) => `${d.date ?? "?"}: ${d.kcal ?? 0}kcal, prot ${d.protein ?? 0}g, carb ${d.carbs ?? 0}g, gord ${d.fat ?? 0}g`)
-      .join("; ");
-    lines.push(`Totais dos últimos dias (mais antigo → mais recente): ${daysText}.`);
-  }
-
-  return lines.length > 0 ? lines.join("\n") : "Sem contexto adicional disponível.";
-}
-
-/** Turno sintético (não digitado pelo usuário) para gatilhos automáticos. */
-function syntheticUserTurn(trigger: ChatTrigger): string {
-  switch (trigger) {
-    case "meal_logged":
-      return "Acabei de registrar uma refeição. Comente brevemente considerando minhas metas e o que já comi hoje.";
-    case "daily_summary":
-      return "Gere um resumo breve e encorajador do meu dia com base no meu consumo total e minhas metas.";
-    case "weekly_summary":
-      return "Gere uma análise da minha semana com base nos totais diários e minhas metas.";
-    default:
-      return "";
-  }
-}
 
 async function callGeminiChat(
   systemInstruction: string,
@@ -308,12 +252,13 @@ export const chat = onCall({ region: REGION, secrets: [geminiApiKey] }, async (r
     throw new HttpsError("unauthenticated", "Faça login para conversar com a Nutri.");
   }
 
-  const trigger = request.data?.trigger as unknown;
-  if (typeof trigger !== "string" || !CHAT_TRIGGERS.includes(trigger as ChatTrigger)) {
+  const rawTrigger = request.data?.trigger as unknown;
+  if (!isValidTrigger(rawTrigger)) {
     throw new HttpsError("invalid-argument", "trigger inválido.");
   }
+  const trigger: ChatTrigger = rawTrigger;
 
-  if (PREMIUM_ONLY_TRIGGERS.includes(trigger as ChatTrigger)) {
+  if (requiresPremium(trigger)) {
     const premium = await isPremiumUser(uid);
     if (!premium) {
       throw new HttpsError(
@@ -323,11 +268,18 @@ export const chat = onCall({ region: REGION, secrets: [geminiApiKey] }, async (r
           : "O chat com a Nutri é exclusivo do Premium. Assine para conversar à vontade."
       );
     }
+  } else if (isAutoTrigger(trigger)) {
+    // Gatilhos automáticos são grátis, mas para FREE contam contra o teto
+    // diário — impede loop de chamadas Gemini de graça (anti-abuso de custo).
+    const premium = await isPremiumUser(uid);
+    if (!premium) {
+      await reserveAutoChatQuota(uid);
+    }
   }
 
   await touchLastActivity(uid);
 
-  const context: ChatContext = (request.data?.context as ChatContext) ?? {};
+  const context: ChatContext = sanitizeContext((request.data?.context as ChatContext) ?? {});
   const contextText = buildContextText(context);
   const extraInstruction = trigger === "weekly_summary" ? `\n\n${WEEKLY_SUMMARY_INSTRUCTION}` : "";
   const systemInstruction = `${CHAT_PERSONA_PROMPT}${extraInstruction}\n\nContexto atual do usuário:\n${contextText}`;
@@ -343,18 +295,14 @@ export const chat = onCall({ region: REGION, secrets: [geminiApiKey] }, async (r
       throw new HttpsError("invalid-argument", "Mensagem muito longa.");
     }
 
-    const rawHistory = Array.isArray(request.data?.history) ? (request.data.history as ChatHistoryTurn[]) : [];
-    const history = rawHistory.slice(-MAX_HISTORY_MESSAGES).filter(
-      (h): h is ChatHistoryTurn =>
-        (h?.role === "user" || h?.role === "model") && typeof h?.content === "string"
-    );
+    const history = sanitizeHistory(request.data?.history);
 
     for (const turn of history) {
       contents.push({ role: turn.role, parts: [{ text: turn.content }] });
     }
     contents.push({ role: "user", parts: [{ text: message }] });
   } else {
-    contents.push({ role: "user", parts: [{ text: syntheticUserTurn(trigger as ChatTrigger) }] });
+    contents.push({ role: "user", parts: [{ text: syntheticUserTurn(trigger) }] });
   }
 
   const reply = await callGeminiChat(systemInstruction, contents, geminiApiKey.value());
