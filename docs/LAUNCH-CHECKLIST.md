@@ -35,9 +35,14 @@ Depende de A2.
   Isso publica `analyzePhoto`, `chat`, `revenuecatWebhook`, `deleteAccount`,
   `registerFcmToken` e a agendada `sendReengagementPush` (cria o job no Cloud
   Scheduler automaticamente).
-- [ ] **B2.** Conferir no console do Firebase que as 6 functions subiram sem
-  erro e que o Crashlytics/Analytics apareceram (vão aparecer assim que o
-  primeiro build com `google-services.json` rodar).
+- [ ] **B2.** Conferir no console do Firebase que as 7 functions subiram sem
+  erro (analyzePhoto, chat, revenuecatWebhook, deleteAccount, registerFcmToken,
+  sendReengagementPush) e que o Crashlytics/Analytics apareceram (vão aparecer
+  assim que o primeiro build com `google-services.json` rodar).
+- [ ] **B3. Validar as regras do Firestore no emulador** antes/depois do deploy —
+  ver o passo descrito em `docs/SECURITY-REVIEW.md` (as regras agora usam
+  whitelist de campos graváveis pelo cliente; confirme que o fluxo legítimo
+  passa e que gravar `isPremium` é negado).
 
 ## PARTE C — Assinaturas (RevenueCat + Play Billing) 🟡
 Depende de A1, A3 e de um primeiro build assinado (Parte D).
@@ -88,9 +93,10 @@ Pode adiantar em paralelo às outras partes.
 - [ ] **E3. Data Safety form** — preencher usando o gabarito
   `docs/PLAY-DATA-SAFETY.md` (mapeia cada categoria para a resposta certa com
   base no que o app coleta de verdade).
-- [ ] **E4. Screenshots + feature graphic** — capturar as 6 telas no device
-  real (guia no fim de `docs/PLAY-STORE-LISTING.md`) e montar o gráfico de
-  destaque 1024×500. Os screenshots saem naturalmente do teste da Parte F.
+- [ ] **E4. Screenshots + feature graphic** — o **feature graphic 1024×500 já
+  está pronto** em `docs/store-assets/feature-graphic.png` (editável via o
+  `.source.html` ao lado). Falta só capturar as 6 telas no device real (guia no
+  fim de `docs/PLAY-STORE-LISTING.md`) — saem naturalmente do teste da Parte F.
 - [ ] **E5. Classificação etária** — responder o questionário IARC declarando
   que **não** é app para crianças (saúde + IA conversacional).
 
@@ -106,6 +112,8 @@ Depende de tudo acima.
 - [ ] **F3. Trilha Fechada — 12 testadores × 14 dias** (obrigatório para conta
   nova antes de produção). Convide 12 pessoas, mantenha por 14 dias corridos.
   ⚠️ **Comece isso o quanto antes** — é o passo mais demorado do lançamento.
+  Use o **`docs/BETA-TESTER-GUIDE.md`**: tem o convite pronto pra mandar, o
+  roteiro de teste e o como-reportar-bug pros testadores.
 - [ ] **F4. Produção** — depois do teste fechado aprovado, promover para
   produção com **rollout gradual** (10% → 50% → 100%), acompanhando
   Crashlytics/Analytics a cada etapa.
