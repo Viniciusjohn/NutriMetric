@@ -7,6 +7,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.revenuecat.purchases.CustomerInfo
 import com.revenuecat.purchases.Offering
 import com.revenuecat.purchases.Package
+import com.revenuecat.purchases.PeriodType
 import com.revenuecat.purchases.PurchaseParams
 import com.revenuecat.purchases.Purchases
 import com.revenuecat.purchases.PurchasesConfiguration
@@ -32,12 +33,10 @@ import kotlin.coroutines.resumeWithException
  * IMPORTANTE: o `app_user_id` do RevenueCat DEVE ser o uid do Firebase Auth
  * (a Cloud Function `revenuecatWebhook` já assume isso — ver functions/src/index.ts).
  * O entitlement checado é "premium", configurado no painel do RevenueCat.
- *
- * Nota: as assinaturas exatas de callback abaixo devem ser conferidas contra
- * a versão do SDK instalada no primeiro build real (ver docs/SETUP-REVENUECAT.md) —
- * este ambiente não tem acesso ao Maven Central para validar em tempo de escrita.
  */
 class SubscriptionRepository(private val context: Context) {
+
+    private val analyticsRepository = AnalyticsRepository(context)
 
     companion object {
         private const val ENTITLEMENT_PREMIUM = "premium"
@@ -116,6 +115,20 @@ class SubscriptionRepository(private val context: Context) {
         }
     }
 
+    /** trial_start quando o RevenueCat marca o período como trial, purchase (GA4) caso contrário. */
+    private fun logPurchaseAnalytics(packageToPurchase: Package, customerInfo: CustomerInfo) {
+        val isTrial = customerInfo.entitlements[ENTITLEMENT_PREMIUM]?.periodType == PeriodType.TRIAL
+        val price = packageToPurchase.product.price
+        val params = mapOf(
+            AnalyticsRepository.PARAM_VALUE to price.amountMicros / 1_000_000.0,
+            AnalyticsRepository.PARAM_CURRENCY to price.currencyCode
+        )
+        analyticsRepository.logEvent(
+            if (isTrial) AnalyticsRepository.EVENT_TRIAL_START else AnalyticsRepository.EVENT_PURCHASE,
+            params
+        )
+    }
+
     suspend fun purchasePackage(activity: Activity, packageToPurchase: Package): Result<Unit> {
         ensureConfigured()
         return try {
@@ -127,6 +140,7 @@ class SubscriptionRepository(private val context: Context) {
                             storeTransaction: com.revenuecat.purchases.models.StoreTransaction,
                             customerInfo: CustomerInfo
                         ) {
+                            logPurchaseAnalytics(packageToPurchase, customerInfo)
                             cont.resume(Unit)
                         }
                         override fun onError(error: PurchasesError, userCancelled: Boolean) {

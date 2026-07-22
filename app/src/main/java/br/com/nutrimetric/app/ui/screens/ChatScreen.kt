@@ -167,33 +167,42 @@ fun ChatScreen(
             }
         }
     ) { padding ->
-        if (messages.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)) {
                 Text(
-                    text = "Oi! Sou a Nutri 👋 Registre uma refeição pra eu comentar, ou me pergunte algo (Premium).",
+                    text = "A Nutri é uma IA e não substitui nutricionista ou médico.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 12.dp)
                 )
             }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(messages, key = { it.id }) { message -> MessageBubble(message) }
-                if (isSending) {
-                    item { TypingIndicator() }
+
+            if (messages.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Oi! Sou a Nutri 👋 Registre uma refeição pra eu comentar, ou me pergunte algo (Premium).",
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(messages, key = { it.id }) { message -> MessageBubble(message) }
+                    if (isSending) {
+                        item { TypingIndicator() }
+                    }
                 }
             }
         }

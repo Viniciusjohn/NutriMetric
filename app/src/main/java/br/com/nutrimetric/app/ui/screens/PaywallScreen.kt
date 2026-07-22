@@ -36,6 +36,7 @@ fun PaywallScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
+        viewModel.logPaywallView(reason)
         offering = viewModel.getOffering()
         isLoadingOffering = false
     }

@@ -141,25 +141,28 @@ Features de retenção 100% locais (não dependem de contas externas), feitas an
 
 ---
 
-## FASE 5 — Lançamento na Play Store (~1–2 semanas + review)
+## FASE 5 — Lançamento na Play Store (código/docs prontos ✅, falta setup manual)
 
-### 5.1 Qualidade e observabilidade
-- Crashlytics + Analytics com funil: `onboarding_complete`, `photo_analyzed`, `paywall_view`, `trial_start`, `purchase`
-- Ligar `isMinifyEnabled = true` no release + regras ProGuard para Retrofit/Moshi/kotlinx-serialization/TFLite (hoje está desligado)
-- Rodar `./gradlew test` (Robolectric/Roborazzi já configurados) + teste manual do fluxo completo
+Todo o trabalho de código, documentação e artefatos está feito. O que resta
+exige contas/ações humanas irredutíveis — consolidado em `docs/LAUNCH-CHECKLIST.md`.
 
-### 5.2 Compliance (bloqueia aprovação se faltar)
-- **Política de privacidade LGPD** hospedada (dado de saúde = sensível: base legal, consentimento no onboarding)
-- **Exclusão de conta**: obrigatório pela Play — fluxo in-app (Settings) + link web
-- **Data Safety form** preenchido (coleta: saúde, fotos, identificadores)
-- Disclaimer médico no app e na listing
+### 5.1 Qualidade e observabilidade (✅ implementada)
+- Funil de Analytics (`repository/AnalyticsRepository.kt`): `onboarding_complete`, `photo_analyzed`, `paywall_view`, `trial_start`, `purchase` — instrumentados em `MainViewModel`, `PaywallScreen`, `SubscriptionRepository` (trial vs purchase distinguidos por `PeriodType`). Crashlytics já vinha da Fase 1.
+- `isMinifyEnabled = true` no release + regras ProGuard (kotlinx.serialization, Moshi reflexivo, Retrofit, TFLite, RevenueCat, coroutines) em `app/proguard-rules.pro` — build `:app:minifyReleaseWithR8` verificado.
+- `:app:testDebugUnitTest` passando (21/21). Teste manual do fluxo completo fica pro teste em device (Parte F do checklist).
 
-### 5.3 Publicação
-- Gerar AAB assinado (keystore da Fase 0 + Play App Signing)
-- Listing PT-BR: título, descrição curta/longa, 8 screenshots, feature graphic
-- **Trilha:** Interno (você) → **Fechado (12 testadores × 14 dias — requisito de conta nova, iniciar já na Fase 3!)** → Produção com rollout gradual (10% → 50% → 100%)
+### 5.2 Compliance (✅ implementada)
+- **Política de privacidade LGPD** (`docs/privacy-policy.html`) atualizada para todos os dados coletados (saúde, fotos, chat, token FCM, eventos de analytics); **termos** em `docs/terms.html`. Falta só habilitar o GitHub Pages (passo manual, ver checklist).
+- **Exclusão de conta** in-app já existe desde a Fase 2.5 (function `deleteAccount`).
+- **Data Safety form** — gabarito completo em `docs/PLAY-DATA-SAFETY.md`.
+- **Disclaimer médico** no onboarding, no login e agora também como banner fixo no `ChatScreen`.
 
-**✅ Milestone F5: app em produção na Play Store.** 🚀
+### 5.3 Publicação (preparada ✅, execução manual pelo dono)
+- **AAB assinado**: keystore de upload gerada e entregue ao dono (alias `upload`, o `signingConfigs.release` já a espera). `bundleRelease` documentado no checklist.
+- **Listing PT-BR**: `docs/PLAY-STORE-LISTING.md` (título, descrições, categoria, guia de screenshots pra capturar no device real).
+- **Trilha:** Interno → **Fechado (12 testadores × 14 dias — requisito de conta nova, começar cedo)** → Produção com rollout gradual (10% → 50% → 100%).
+
+**⏳ Milestone F5:** tudo que é código/docs pronto; publicação depende das contas (Play Console, Firebase Blaze, RevenueCat) — ver `docs/LAUNCH-CHECKLIST.md`. 🚀
 
 ---
 

@@ -128,6 +128,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 goal = mapGoal(profile.goal)
             )
             goalsRepository.saveGoals(goals)
+            analyticsRepository.logEvent(br.com.nutrimetric.app.repository.AnalyticsRepository.EVENT_ONBOARDING_COMPLETE)
         }
     }
 
@@ -151,6 +152,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val subscriptionRepository = br.com.nutrimetric.app.repository.SubscriptionRepository(application)
     private val pushRepository = br.com.nutrimetric.app.repository.PushRepository()
+    private val analyticsRepository = br.com.nutrimetric.app.repository.AnalyticsRepository(application)
 
     init {
         // Garante que o backend tenha o token FCM mais recente do usuário logado
@@ -534,6 +536,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     
+                    analyticsRepository.logEvent(
+                        br.com.nutrimetric.app.repository.AnalyticsRepository.EVENT_PHOTO_ANALYZED,
+                        mapOf(br.com.nutrimetric.app.repository.AnalyticsRepository.PARAM_ITEM_COUNT to mappedItems.size)
+                    )
                     // Update UI state on Main thread
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                         _analysisState.value = AnalysisState.Success(base64, mappedItems, uri)
@@ -765,6 +771,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ---------- Assinatura (RevenueCat) ----------
+
+    fun logPaywallView(reason: String?) {
+        analyticsRepository.logEvent(
+            br.com.nutrimetric.app.repository.AnalyticsRepository.EVENT_PAYWALL_VIEW,
+            mapOf(br.com.nutrimetric.app.repository.AnalyticsRepository.PARAM_REASON to (reason ?: "unknown"))
+        )
+    }
 
     suspend fun getOffering(): com.revenuecat.purchases.Offering? = subscriptionRepository.getOffering()
 
