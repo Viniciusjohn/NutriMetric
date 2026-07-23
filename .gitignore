@@ -16,3 +16,11 @@
 local.properties
 .env
 debug.keystore
+*.jks
+*.keystore
+google-services.json
+app/build
+functions/node_modules
+functions/lib
+.firebase
+*firebase-debug.log

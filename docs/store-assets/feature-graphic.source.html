@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { width:1024px; height:500px;
+    background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 55%, #43a047 100%); }
+  body { width:1024px; height:500px; overflow:hidden; position:relative;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color:#fff;
+    background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 55%, #43a047 100%); }
+  .dots { position:absolute; inset:0; opacity:0.10;
+    background-image: radial-gradient(circle, #fff 1.5px, transparent 1.6px);
+    background-size: 34px 34px; }
+  .wrap { position:absolute; inset:0; display:flex; align-items:center; padding:0 64px; }
+  .left { flex:1; }
+  .badge { display:inline-block; background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.28);
+    padding:7px 16px; border-radius:999px; font-size:19px; font-weight:600; letter-spacing:.3px; margin-bottom:20px; }
+  h1 { font-size:72px; font-weight:800; letter-spacing:-1.5px; line-height:1; margin-bottom:16px; }
+  h1 .thin { font-weight:400; }
+  .tag { font-size:29px; font-weight:500; opacity:.96; margin-bottom:26px; line-height:1.25; }
+  .chips { display:flex; gap:12px; }
+  .chip { background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25);
+    border-radius:14px; padding:10px 16px; font-size:19px; font-weight:600; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+  .right { width:330px; display:flex; align-items:center; justify-content:center; }
+  .plate { width:280px; height:280px; border-radius:50%;
+    background: radial-gradient(circle at 38% 32%, #ffffff 0%, #eef5ee 60%, #d9e8da 100%);
+    box-shadow: 0 22px 60px rgba(0,0,0,0.30), inset 0 0 0 12px rgba(255,255,255,0.55);
+    display:flex; align-items:center; justify-content:center; position:relative; }
+  .plate .emoji { font-size:144px; line-height:1; filter: drop-shadow(0 6px 10px rgba(0,0,0,.18)); }
+  .scan { position:absolute; width:204px; height:204px; border-radius:26px; }
+  .scan span { position:absolute; width:34px; height:34px; border:5px solid #2e7d32; }
+  .scan .tl{ top:-6px; left:-6px; border-right:none; border-bottom:none; border-top-left-radius:10px; }
+  .scan .tr{ top:-6px; right:-6px; border-left:none; border-bottom:none; border-top-right-radius:10px; }
+  .scan .bl{ bottom:-6px; left:-6px; border-right:none; border-top:none; border-bottom-left-radius:10px; }
+  .scan .br{ bottom:-6px; right:-6px; border-left:none; border-top:none; border-bottom-right-radius:10px; }
+</style>
+</head>
+<body>
+  <div class="dots"></div>
+  <div class="wrap">
+    <div class="left">
+      <div class="badge">🥗 Nutrição com IA</div>
+      <h1>Nutri<span class="thin">Metric</span></h1>
+      <div class="tag">Fotografe o prato.<br>A IA calcula calorias e macros.</div>
+      <div class="chips">
+        <div class="chip">📸 Análise por foto</div>
+        <div class="chip">💬 Nutri IA</div>
+        <div class="chip">🇧🇷 Tabela TACO</div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="plate">
+        <div class="emoji">🍛</div>
+        <div class="scan"><span class="tl"></span><span class="tr"></span><span class="bl"></span><span class="br"></span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

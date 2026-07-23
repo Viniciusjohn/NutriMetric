@@ -1,24 +1,54 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
-  alias(libs.plugins.secrets)
+  alias(libs.plugins.google.services) apply false
+  alias(libs.plugins.firebase.crashlytics) apply false
+}
+
+// google-services e crashlytics exigem o google-services.json (baixado do
+// console do Firebase). Aplicados condicionalmente para o projeto continuar
+// compilando antes de o projeto Firebase ser criado.
+if (file("google-services.json").exists()) {
+  apply(plugin = libs.plugins.google.services.get().pluginId)
+  apply(plugin = libs.plugins.firebase.crashlytics.get().pluginId)
+} else {
+  logger.warn("google-services.json ausente — Firebase desativado neste build. Veja docs/SETUP-FIREBASE.md")
+}
+
+// Chave pública do RevenueCat (client-safe por natureza, ao contrário das
+// chaves de IA que ficam só no servidor). Lida de local.properties (já
+// gitignorado) para não commitar segredos de conta, com fallback vazio para
+// o projeto continuar compilando antes do RevenueCat ser configurado.
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+  localProperties.load(FileInputStream(localPropertiesFile))
 }
 
 android {
-  namespace = "com.example"
+  namespace = "br.com.nutrimetric.app"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.pratobr.xpqtz"
+    applicationId = "br.com.nutrimetric.app"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    buildConfigField(
+      "String",
+      "REVENUECAT_API_KEY",
+      "\"${localProperties.getProperty("REVENUECAT_API_KEY", "")}\""
+    )
   }
 
   signingConfigs {
@@ -40,7 +70,7 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
@@ -58,13 +88,6 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
-}
-
-// Configure the Secrets Gradle Plugin to use .env and .env.example files
-// to match the convention used in Web projects.
-secrets {
-  propertiesFileName = ".env"
-  defaultPropertiesFileName = ".env.example"
 }
 
 // Some unused dependencies are commented out below instead of being removed.
@@ -101,8 +124,20 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
+  implementation(libs.firebase.auth)
+  implementation(libs.firebase.firestore)
+  implementation(libs.firebase.functions)
+  implementation(libs.firebase.analytics)
+  implementation(libs.firebase.crashlytics)
+  implementation(libs.firebase.messaging)
+  implementation(libs.revenuecat.purchases)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services)
+  implementation(libs.googleid)
+  implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.kotlinx.coroutines.play.services)
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
