@@ -163,6 +163,50 @@ fun SettingsScreen(
                     }
                 }
 
+                // Botão de Premium de TESTE — visível só pra contas autorizadas
+                // (checagem no cliente é só de visibilidade; a Cloud Function
+                // re-valida a allowlist no servidor).
+                if (viewModel.isTestPremiumAllowed()) {
+                    var isTogglingTestPremium by remember { mutableStateOf(false) }
+                    var testPremiumError by remember { mutableStateOf<String?>(null) }
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("🧪 Premium de teste", fontWeight = FontWeight.Bold)
+                            Text(
+                                if (isPremium) "Premium ATIVO (teste). Toque para desativar."
+                                else "Libera chat e relatório premium só pra você testar.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    testPremiumError = null
+                                    isTogglingTestPremium = true
+                                    scope.launch {
+                                        val result = viewModel.setTestPremium(!isPremium)
+                                        isTogglingTestPremium = false
+                                        result.onFailure { e ->
+                                            testPremiumError = "Falhou: ${e.message}"
+                                        }
+                                    }
+                                },
+                                enabled = !isTogglingTestPremium,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (isPremium) "Desativar Premium (teste)" else "Ativar Premium (teste)")
+                            }
+                            testPremiumError?.let {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+
                 // 1. Calories Slider
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {

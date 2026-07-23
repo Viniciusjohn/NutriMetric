@@ -140,6 +140,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 goal = mapGoal(profile.goal)
             )
             goalsRepository.saveGoals(goals)
+            // Espelha o perfil no Firestore (banco de clientes na nuvem).
+            userCloudRepository.saveProfile(
+                profile = profile.copy(onboardingCompleted = true),
+                goals = goals,
+                weightKg = weightKg
+            )
             analyticsRepository.logEvent(br.com.nutrimetric.app.repository.AnalyticsRepository.EVENT_ONBOARDING_COMPLETE)
         }
     }
@@ -165,6 +171,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val subscriptionRepository = br.com.nutrimetric.app.repository.SubscriptionRepository(application)
     private val pushRepository = br.com.nutrimetric.app.repository.PushRepository()
     private val analyticsRepository = br.com.nutrimetric.app.repository.AnalyticsRepository(application)
+    private val userCloudRepository = br.com.nutrimetric.app.repository.UserCloudRepository(application)
+
+    /**
+     * Ao logar, tenta puxar o perfil da nuvem; se existir, grava no local e
+     * marca o onboarding como concluído — quem já preencheu em outro aparelho
+     * não refaz o questionário. No-op sem Firebase/perfil.
+     */
+    suspend fun hydrateProfileFromCloud() {
+        val cloud = userCloudRepository.fetchProfile() ?: return
+        profileRepository.saveProfile(cloud.profile.copy(onboardingCompleted = true))
+        goalsRepository.saveGoals(cloud.goals)
+        _onboardingDoneOverride.value = true
+    }
 
     init {
         // Garante que o backend tenha o token FCM mais recente do usuário logado
@@ -803,4 +822,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ): Result<Unit> = subscriptionRepository.purchasePackage(activity, packageToPurchase)
 
     suspend fun restorePurchases(): Result<Unit> = subscriptionRepository.restorePurchases()
+
+    // ---------- Premium de teste (só pra contas autorizadas) ----------
+
+    /** True se a conta logada pode ver o botão de Premium de teste em Settings. */
+    fun isTestPremiumAllowed(): Boolean {
+        if (!br.com.nutrimetric.app.repository.AuthRepository.isFirebaseConfigured(getApplication())) return false
+        val email = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
+        return subscriptionRepository.isTestPremiumAllowed(email)
+    }
+
+    suspend fun setTestPremium(enable: Boolean): Result<Unit> = subscriptionRepository.setTestPremium(enable)
 }

@@ -22,7 +22,8 @@ passam a funcionar automaticamente.
      `applicationId` do projeto)
    - Baixe o **`google-services.json`** e coloque em **`app/google-services.json`**
      (o arquivo está no `.gitignore` — não será commitado)
-2. **Authentication** → Sign-in method → habilite **Google**
+2. **Authentication** → Sign-in method → habilite **Google** E **E-mail/senha**
+   (o app oferece os dois no login)
    - Em "Configurações do projeto → Geral", cadastre o **SHA-1 de debug** do seu
      computador (obrigatório para o login Google funcionar):
      ```bash
@@ -62,6 +63,13 @@ firebase deploy --only functions,firestore:rules
 > agendada (`onSchedule`) — o deploy cria automaticamente o job no Cloud
 > Scheduler. Nenhum passo manual extra, mas o Cloud Scheduler também exige o
 > plano Blaze (já habilitado acima).
+
+> **Premium de teste:** depois do deploy, entre no app com a sua conta
+> (`vinijohn00@gmail.com`, allowlist em `functions/src/logic.ts` →
+> `TEST_PREMIUM_EMAILS`) e vá em **Configurações → 🧪 Premium de teste →
+> Ativar**. Isso libera chat/relatório premium sem precisar do RevenueCat.
+> Pra autorizar outra conta, adicione o e-mail na allowlist e faça deploy de
+> novo. Contas fora da lista nem veem o botão (e a function recusa no servidor).
 
 ## 5. Habilitar GitHub Pages (política de privacidade + termos)
 

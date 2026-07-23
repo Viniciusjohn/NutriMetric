@@ -11,6 +11,7 @@ import {
   MAX_CHAT_MESSAGE_LENGTH,
   buildContextText,
   isAutoTrigger,
+  isTestPremiumEmail,
   isValidTrigger,
   photoLimitFor,
   requiresPremium,
@@ -406,6 +407,41 @@ export const registerFcmToken = onCall({ region: REGION }, async (request) => {
   );
 
   return { success: true };
+});
+
+/**
+ * Premium de TESTE: liga/desliga `users/{uid}.isPremium` para contas da
+ * allowlist (TEST_PREMIUM_EMAILS). Serve pro dono testar as features premium
+ * sem uma compra real do RevenueCat. A allowlist é checada NO SERVIDOR pelo
+ * e-mail do token de auth — o cliente não consegue se auto-promover (as
+ * Firestore Rules também bloqueiam escrever isPremium direto).
+ */
+async function setTestPremiumFor(uid: string, email: string | undefined, enable: boolean) {
+  if (!isTestPremiumEmail(email)) {
+    throw new HttpsError("permission-denied", "Conta não autorizada para Premium de teste.");
+  }
+  await db.doc(`users/${uid}`).set(
+    {
+      isPremium: enable,
+      isTestPremium: enable,
+      testPremiumUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  logger.info(`Premium de teste de ${uid} (${email}) → ${enable}`);
+  return { success: true, isPremium: enable };
+}
+
+export const setTestPremium = onCall({ region: REGION }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Faça login.");
+  return setTestPremiumFor(uid, request.auth?.token?.email, true);
+});
+
+export const clearTestPremium = onCall({ region: REGION }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Faça login.");
+  return setTestPremiumFor(uid, request.auth?.token?.email, false);
 });
 
 const REENGAGEMENT_INACTIVE_DAYS = 2;

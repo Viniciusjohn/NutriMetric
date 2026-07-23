@@ -64,6 +64,32 @@ class AuthRepository {
         }
     }
 
+    /** Entra com e-mail/senha (conta já existente). */
+    suspend fun signInWithEmail(email: String, password: String): Result<FirebaseUser> {
+        return try {
+            val result = auth.signInWithEmailAndPassword(email.trim(), password).await()
+            val user = result.user
+                ?: return Result.failure(IllegalStateException("Firebase não retornou o usuário."))
+            ensureUserDocument(user)
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Cria conta nova com e-mail/senha. */
+    suspend fun signUpWithEmail(email: String, password: String): Result<FirebaseUser> {
+        return try {
+            val result = auth.createUserWithEmailAndPassword(email.trim(), password).await()
+            val user = result.user
+                ?: return Result.failure(IllegalStateException("Firebase não retornou o usuário."))
+            ensureUserDocument(user)
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun signOut() {
         auth.signOut()
         logOutRevenueCat()

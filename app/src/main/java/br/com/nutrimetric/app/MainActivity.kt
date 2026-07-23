@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
             composable("login") {
               LoginScreen(
                 authRepository = authRepository,
+                viewModel = viewModel,
                 onLoginSuccess = {
                   navController.navigate("home") {
                     popUpTo("login") { inclusive = true }

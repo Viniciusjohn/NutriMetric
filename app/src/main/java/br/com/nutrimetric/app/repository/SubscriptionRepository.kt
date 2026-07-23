@@ -3,7 +3,10 @@ package br.com.nutrimetric.app.repository
 import android.app.Activity
 import android.content.Context
 import br.com.nutrimetric.app.BuildConfig
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
 import com.revenuecat.purchases.CustomerInfo
 import com.revenuecat.purchases.Offering
 import com.revenuecat.purchases.Package
@@ -17,13 +20,14 @@ import com.revenuecat.purchases.interfaces.PurchaseCallback
 import com.revenuecat.purchases.interfaces.ReceiveCustomerInfoCallback
 import com.revenuecat.purchases.interfaces.ReceiveOfferingsCallback
 import com.revenuecat.purchases.interfaces.UpdatedCustomerInfoListener
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -40,10 +44,22 @@ class SubscriptionRepository(private val context: Context) {
 
     companion object {
         private const val ENTITLEMENT_PREMIUM = "premium"
+        // Mesma região das Cloud Functions (São Paulo).
+        private const val REGION = "southamerica-east1"
+        // Contas autorizadas a ativar o "Premium de teste" pelo botão em
+        // Configurações. A Cloud Function re-checa isso no servidor — esta lista
+        // no cliente só controla a VISIBILIDADE do botão. Em minúsculas.
+        val TEST_PREMIUM_EMAILS = setOf("vinijohn00@gmail.com")
 
         @Volatile
         private var configured = false
     }
+
+    private fun isFirebaseAvailable(): Boolean = FirebaseApp.getApps(context).isNotEmpty()
+
+    /** True se o e-mail logado pode ver o botão de Premium de teste. */
+    fun isTestPremiumAllowed(email: String?): Boolean =
+        email != null && email.lowercase() in TEST_PREMIUM_EMAILS
 
     /** Garante que o SDK está configurado e logado com o uid do Firebase atual. Idempotente. */
     fun ensureConfigured() {
@@ -74,8 +90,8 @@ class SubscriptionRepository(private val context: Context) {
         }
     }
 
-    /** Status premium reativo, atualizado sempre que o RevenueCat notificar mudança de entitlement. */
-    val isPremium: Flow<Boolean> = callbackFlow {
+    /** Status premium do RevenueCat (entitlement "premium"). */
+    private val revenueCatPremiumFlow: Flow<Boolean> = callbackFlow {
         ensureConfigured()
         if (!Purchases.isConfigured) {
             trySend(false)
@@ -98,6 +114,50 @@ class SubscriptionRepository(private val context: Context) {
             }
         })
         awaitClose { }
+    }
+
+    /**
+     * Status premium vindo do Firestore (`users/{uid}.isPremium`), que é escrito
+     * pelo webhook do RevenueCat (compra real) OU pela function de Premium de
+     * teste. Fonte da verdade do lado servidor; permite testar o Premium sem
+     * uma compra real. No-op (false) sem Firebase configurado ou sem usuário.
+     */
+    private val firestorePremiumFlow: Flow<Boolean> = callbackFlow {
+        if (!isFirebaseAvailable()) {
+            trySend(false); awaitClose { }; return@callbackFlow
+        }
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (uid == null) {
+            trySend(false); awaitClose { }; return@callbackFlow
+        }
+        val registration = FirebaseFirestore.getInstance()
+            .document("users/$uid")
+            .addSnapshotListener { snapshot, _ ->
+                trySend(snapshot?.getBoolean("isPremium") == true)
+            }
+        awaitClose { registration.remove() }
+    }
+
+    /**
+     * Premium efetivo = RevenueCat (compra na hora) OU Firestore (webhook /
+     * Premium de teste). Qualquer uma das fontes ativa desbloqueia a UI premium.
+     */
+    val isPremium: Flow<Boolean> =
+        combine(revenueCatPremiumFlow, firestorePremiumFlow) { rc, fs -> rc || fs }
+
+    /**
+     * Liga/desliga o Premium de teste chamando a Cloud Function correspondente
+     * (que valida a allowlist no servidor). O resultado reflete no isPremium via
+     * o snapshot do Firestore.
+     */
+    suspend fun setTestPremium(enable: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val fn = if (enable) "setTestPremium" else "clearTestPremium"
+            FirebaseFunctions.getInstance(REGION).getHttpsCallable(fn).call().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun getOffering(): Offering? {
@@ -131,6 +191,9 @@ class SubscriptionRepository(private val context: Context) {
 
     suspend fun purchasePackage(activity: Activity, packageToPurchase: Package): Result<Unit> {
         ensureConfigured()
+        if (!Purchases.isConfigured) {
+            return Result.failure(Exception("Assinaturas ainda não estão disponíveis. Tente mais tarde."))
+        }
         return try {
             suspendCancellableCoroutine { cont ->
                 Purchases.sharedInstance.purchase(
@@ -161,6 +224,9 @@ class SubscriptionRepository(private val context: Context) {
 
     suspend fun restorePurchases(): Result<Unit> {
         ensureConfigured()
+        if (!Purchases.isConfigured) {
+            return Result.failure(Exception("Assinaturas ainda não estão disponíveis. Tente mais tarde."))
+        }
         return try {
             suspendCancellableCoroutine<Unit> { cont ->
                 Purchases.sharedInstance.restorePurchases(object : ReceiveCustomerInfoCallback {

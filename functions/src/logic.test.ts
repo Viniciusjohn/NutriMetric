@@ -10,6 +10,7 @@ import {
   PREMIUM_ONLY_TRIGGERS,
   buildContextText,
   isAutoTrigger,
+  isTestPremiumEmail,
   isValidTrigger,
   photoLimitFor,
   requiresPremium,
@@ -137,6 +138,19 @@ describe("syntheticUserTurn", () => {
     expect(syntheticUserTurn("daily_summary")).toContain("resumo");
     expect(syntheticUserTurn("weekly_summary")).toContain("semana");
     expect(syntheticUserTurn("user_message")).toBe("");
+  });
+});
+
+describe("isTestPremiumEmail (allowlist do Premium de teste)", () => {
+  it("aceita o e-mail autorizado, ignorando maiúsculas", () => {
+    expect(isTestPremiumEmail("vinijohn00@gmail.com")).toBe(true);
+    expect(isTestPremiumEmail("ViniJohn00@Gmail.com")).toBe(true);
+  });
+  it("rejeita e-mails fora da lista e valores vazios/nulos", () => {
+    expect(isTestPremiumEmail("outro@gmail.com")).toBe(false);
+    expect(isTestPremiumEmail(undefined)).toBe(false);
+    expect(isTestPremiumEmail(null)).toBe(false);
+    expect(isTestPremiumEmail("")).toBe(false);
   });
 });
 

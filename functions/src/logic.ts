@@ -4,6 +4,16 @@
  * importa daqui; tudo que toca Firestore/Auth fica lá.
  */
 
+// ---------- Premium de teste ----------
+// Contas autorizadas a ligar/desligar o "Premium de teste" (setTestPremium).
+// Em minúsculas; a checagem normaliza o e-mail do token. Manter curto.
+export const TEST_PREMIUM_EMAILS: string[] = ["vinijohn00@gmail.com"];
+
+/** True se o e-mail (do token de auth) pode usar o Premium de teste. */
+export function isTestPremiumEmail(email: string | undefined | null): boolean {
+  return typeof email === "string" && TEST_PREMIUM_EMAILS.includes(email.toLowerCase());
+}
+
 // ---------- Quotas ----------
 export const FREE_DAILY_PHOTOS = 1;
 export const PREMIUM_DAILY_PHOTOS = 15;

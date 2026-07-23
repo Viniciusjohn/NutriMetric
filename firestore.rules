@@ -3,14 +3,20 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{uid} {
-      // Campos que o CLIENTE pode gravar diretamente (via ensureUserDocument no
-      // AuthRepository). Tudo o mais — isPremium, quota, fcmToken, lastActivityAt,
-      // etc. — é escrito só pelas Cloud Functions/webhook via Admin SDK (que
-      // ignora estas regras). Whitelist em vez de blacklist: impede o cliente de
-      // se auto-promover a premium E de poluir o doc com campos arbitrários
-      // (abuso de custo/armazenamento).
+      // Campos que o CLIENTE pode gravar diretamente: dados de conta
+      // (ensureUserDocument) + perfil/metas do onboarding (UserCloudRepository).
+      // Tudo o mais — isPremium, isTestPremium, quota, fcmToken, lastActivityAt,
+      // subscription* — é escrito só pelas Cloud Functions/webhook via Admin SDK
+      // (que ignora estas regras). Whitelist em vez de blacklist: impede o
+      // cliente de se auto-promover a premium E de poluir o doc com campos
+      // arbitrários (abuso de custo/armazenamento).
       function clientWritableKeys() {
-        return ['displayName', 'email', 'updatedAt'];
+        return [
+          'displayName', 'email', 'updatedAt',
+          'heightCm', 'age', 'sex', 'activityLevel', 'goal', 'onboardingCompleted',
+          'weightKg', 'goalCalories', 'goalProtein', 'goalCarbs', 'goalFat',
+          'goalWaterMl', 'profileUpdatedAt'
+        ];
       }
 
       // O usuário só enxerga o próprio documento.
