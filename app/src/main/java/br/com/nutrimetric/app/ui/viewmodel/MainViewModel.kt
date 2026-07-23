@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
@@ -97,8 +98,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val goalsRepository = br.com.nutrimetric.app.repository.GoalsRepository(application)
     private val profileRepository = br.com.nutrimetric.app.repository.ProfileRepository(application)
 
-    val onboardingCompleted: StateFlow<Boolean> = profileRepository.profileFlow
-        .map { it.onboardingCompleted }
+    // Override em memória: marcado SINCRONAMENTE ao concluir o onboarding. Sem
+    // isso, a gravação assíncrona no DataStore corria contra o gate reativo da
+    // Home, que relia o valor velho `false` ao voltar da tela e mandava o
+    // usuário fazer o questionário DE NOVO. Como o ViewModel é singleton no
+    // grafo de navegação, o override sobrevive à navegação e o gate vê `true`
+    // na hora. (Combinado por OR abaixo.)
+    private val _onboardingDoneOverride = MutableStateFlow(false)
+
+    val onboardingCompleted: StateFlow<Boolean> = combine(
+        profileRepository.profileFlow.map { it.onboardingCompleted },
+        _onboardingDoneOverride
+    ) { fromStore, override -> fromStore || override }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -107,6 +118,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Salva o perfil do onboarding, o peso inicial e calcula as metas automaticamente. */
     fun completeOnboarding(profile: br.com.nutrimetric.app.repository.UserProfile, weightKg: Double) {
+        _onboardingDoneOverride.value = true
         viewModelScope.launch {
             weightDao.insert(
                 br.com.nutrimetric.app.data.local.WeightEntity(
