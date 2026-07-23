@@ -22,7 +22,8 @@ class ChatPremiumRequiredException(message: String) : Exception(message)
  */
 class ChatRepository(private val chatMessageDao: ChatMessageDao) {
 
-    private val functions: FirebaseFunctions = FirebaseFunctions.getInstance(REGION)
+    // Lazy: ver comentário equivalente em AnalysisRepository.
+    private val functions: FirebaseFunctions by lazy { FirebaseFunctions.getInstance(REGION) }
 
     fun getMessagesFlow(): Flow<List<ChatMessageEntity>> = chatMessageDao.getAllMessagesFlow()
 

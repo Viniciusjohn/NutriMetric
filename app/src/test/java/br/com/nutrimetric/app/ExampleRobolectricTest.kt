@@ -1,7 +1,11 @@
 package br.com.nutrimetric.app
 
+import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import br.com.nutrimetric.app.ui.viewmodel.ChatViewModel
+import br.com.nutrimetric.app.ui.viewmodel.MainViewModel
+import br.com.nutrimetric.app.ui.viewmodel.WeeklyReportViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -20,12 +24,20 @@ class ExampleRobolectricTest {
     assertEquals("PratoBr", appName)
   }
 
-  // testViewModelInitialization foi removido: MainViewModel constrói
-  // repositórios que chamam FirebaseFunctions.getInstance()/FirebaseCrashlytics
-  // de forma eager, exigindo um FirebaseApp real (com plugin do Crashlytics
-  // aplicado) para não lançar — mesma limitação do build real antes do
-  // google-services.json existir. Testar MainViewModel de verdade requer
-  // Firebase Test Lab/emulator, fora do escopo de um teste Robolectric puro.
+  /**
+   * Regressão: sem google-services.json (nenhum FirebaseApp inicializado —
+   * exatamente o estado de quem clona o repo e roda antes do setup do
+   * Firebase), construir os ViewModels não pode lançar. Antes de
+   * AnalysisRepository/PushRepository/AnalyticsRepository/ChatRepository
+   * virarem lazy, isso crashava a Home na primeira abertura do app.
+   */
+  @Test
+  fun `ViewModels não crasham sem Firebase configurado`() {
+    val application = ApplicationProvider.getApplicationContext<Application>()
+    assertNotNull(MainViewModel(application))
+    assertNotNull(ChatViewModel(application))
+    assertNotNull(WeeklyReportViewModel(application))
+  }
 
   @Test
   fun testParsePreparo() {

@@ -22,8 +22,11 @@ class QuotaExceededException(message: String) : Exception(message)
  */
 class AnalysisRepository {
 
-    private val functions: FirebaseFunctions =
-        FirebaseFunctions.getInstance(REGION)
+    // Lazy: sem google-services.json, FirebaseFunctions.getInstance() lança
+    // IllegalStateException. Adiar pro primeiro uso real (dentro do try/catch
+    // de analisarFoto) evita crashar a Home inteira ao só abrir o app em
+    // "modo dev" (ver AuthRepository.isFirebaseConfigured).
+    private val functions: FirebaseFunctions by lazy { FirebaseFunctions.getInstance(REGION) }
 
     suspend fun analisarFoto(imageBytes: ByteArray): Result<FoodResponse> =
         withContext(Dispatchers.IO) {

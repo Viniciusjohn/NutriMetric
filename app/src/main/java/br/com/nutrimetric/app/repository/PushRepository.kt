@@ -10,7 +10,8 @@ import kotlinx.coroutines.tasks.await
  */
 class PushRepository {
 
-    private val functions: FirebaseFunctions = FirebaseFunctions.getInstance(REGION)
+    // Lazy: ver comentário equivalente em AnalysisRepository.
+    private val functions: FirebaseFunctions by lazy { FirebaseFunctions.getInstance(REGION) }
 
     suspend fun registerToken(token: String) {
         try {

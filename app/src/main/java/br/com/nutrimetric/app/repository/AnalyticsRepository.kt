@@ -2,6 +2,7 @@ package br.com.nutrimetric.app.repository
 
 import android.content.Context
 import android.os.Bundle
+import com.google.firebase.FirebaseApp
 import com.google.firebase.analytics.FirebaseAnalytics
 
 /**
@@ -9,11 +10,19 @@ import com.google.firebase.analytics.FirebaseAnalytics
  * paywall_view, trial_start, purchase. Wrapper fino sobre o FirebaseAnalytics
  * para não espalhar `Bundle` por toda a UI/ViewModels.
  */
-class AnalyticsRepository(context: Context) {
+class AnalyticsRepository(private val context: Context) {
 
-    private val analytics = FirebaseAnalytics.getInstance(context)
+    // Lazy + nulo sem Firebase configurado: sem google-services.json não há
+    // FirebaseApp, e FirebaseAnalytics.getInstance() lançaria na hora de
+    // construir o repositório (que acontece pra TODO ViewModel, direto ou via
+    // SubscriptionRepository), crashando o app inteiro em "modo dev". Aqui
+    // vira só um no-op silencioso em vez de crash.
+    private val analytics: FirebaseAnalytics? by lazy {
+        if (FirebaseApp.getApps(context).isEmpty()) null else FirebaseAnalytics.getInstance(context)
+    }
 
     fun logEvent(name: String, params: Map<String, Any?> = emptyMap()) {
+        val instance = analytics ?: return
         val bundle = Bundle()
         params.forEach { (key, value) ->
             when (value) {
@@ -26,7 +35,7 @@ class AnalyticsRepository(context: Context) {
                 else -> bundle.putString(key, value.toString())
             }
         }
-        analytics.logEvent(name, bundle)
+        instance.logEvent(name, bundle)
     }
 
     companion object {

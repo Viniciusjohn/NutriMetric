@@ -157,7 +157,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         // Garante que o backend tenha o token FCM mais recente do usuário logado
         // (novos tokens já são cobertos por onNewToken no NutriFirebaseMessagingService).
+        // Guarda por isFirebaseConfigured: sem google-services.json, FirebaseAuth/
+        // FirebaseMessaging.getInstance() lançam (não há FirebaseApp) — em modo
+        // dev isso crasharia o app inteiro na primeira composição da Home.
         viewModelScope.launch {
+            if (!br.com.nutrimetric.app.repository.AuthRepository.isFirebaseConfigured(application)) return@launch
             if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) return@launch
             try {
                 val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
